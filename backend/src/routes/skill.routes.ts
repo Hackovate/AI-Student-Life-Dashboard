@@ -1,40 +1,117 @@
-import { Router } from 'express';
+import express from 'express';
 import { PrismaClient } from '@prisma/client';
 import { authenticate, AuthRequest } from '../middleware/auth.middleware';
 
-const router = Router();
+const router = express.Router();
 const prisma = new PrismaClient();
 
+// Apply auth middleware to all routes
 router.use(authenticate);
 
-// Get all skills
+// ===========================
+// SKILLS ENDPOINTS
+// ===========================
+
+// Get all skills for user
 router.get('/', async (req: AuthRequest, res) => {
   try {
     const skills = await prisma.skill.findMany({
-      where: { userId: req.userId },
+      where: { userId: req.userId! },
+      include: {
+        milestones: {
+          orderBy: { order: 'asc' }
+        },
+        learningResources: {
+          orderBy: { createdAt: 'desc' }
+        }
+      },
       orderBy: { createdAt: 'desc' }
     });
     res.json(skills);
   } catch (error) {
+    console.error('Error fetching skills:', error);
     res.status(500).json({ error: 'Error fetching skills' });
   }
 });
 
-// Create skill
+// Get single skill by ID
+router.get('/:id', async (req: AuthRequest, res) => {
+  try {
+    const { id } = req.params;
+    const skill = await prisma.skill.findUnique({
+      where: { id },
+      include: {
+        milestones: {
+          orderBy: { order: 'asc' }
+        },
+        learningResources: {
+          orderBy: { createdAt: 'desc' }
+        },
+        aiRecommendations: true
+      }
+    });
+
+    if (!skill || skill.userId !== req.userId) {
+      return res.status(404).json({ error: 'Skill not found' });
+    }
+
+    res.json(skill);
+  } catch (error) {
+    console.error('Error fetching skill:', error);
+    res.status(500).json({ error: 'Error fetching skill' });
+  }
+});
+
+// Create new skill
 router.post('/', async (req: AuthRequest, res) => {
   try {
-    const { name, category, level, description } = req.body;
+    const { name, category, level, description, gradient, nextTask, milestones } = req.body;
+
     const skill = await prisma.skill.create({
       data: {
         userId: req.userId!,
         name,
         category,
         level,
-        description
+        description,
+        gradient: gradient || 'from-blue-500 to-cyan-500',
+        nextTask,
+        progress: 0,
+        timeSpent: '0h',
+        resourceCount: 0
       }
     });
-    res.status(201).json(skill);
+
+    // Create milestones if provided
+    if (milestones && Array.isArray(milestones)) {
+      await Promise.all(
+        milestones.map((milestone: any, index: number) =>
+          prisma.milestone.create({
+            data: {
+              skillId: skill.id,
+              userId: req.userId!,
+              name: milestone.name,
+              completed: milestone.completed || false,
+              order: index
+            }
+          })
+        )
+      );
+    }
+
+    // Fetch the complete skill with milestones
+    const completeSkill = await prisma.skill.findUnique({
+      where: { id: skill.id },
+      include: {
+        milestones: {
+          orderBy: { order: 'asc' }
+        }
+      }
+    });
+
+    res.status(201).json(completeSkill);
   } catch (error) {
+    console.error('Error creating skill:', error);
     res.status(500).json({ error: 'Error creating skill' });
   }
 });
@@ -43,12 +120,37 @@ router.post('/', async (req: AuthRequest, res) => {
 router.put('/:id', async (req: AuthRequest, res) => {
   try {
     const { id } = req.params;
+    const existing = await prisma.skill.findUnique({ where: { id } });
+
+    if (!existing || existing.userId !== req.userId) {
+      return res.status(404).json({ error: 'Skill not found' });
+    }
+
+    const { name, category, level, description, gradient, nextTask, timeSpent, certificateUrl } = req.body;
+
     const skill = await prisma.skill.update({
-      where: { id, userId: req.userId },
-      data: req.body
+      where: { id },
+      data: {
+        name,
+        category,
+        level,
+        description,
+        gradient,
+        nextTask,
+        timeSpent,
+        certificateUrl
+      },
+      include: {
+        milestones: {
+          orderBy: { order: 'asc' }
+        },
+        learningResources: true
+      }
     });
+
     res.json(skill);
   } catch (error) {
+    console.error('Error updating skill:', error);
     res.status(500).json({ error: 'Error updating skill' });
   }
 });
@@ -57,13 +159,430 @@ router.put('/:id', async (req: AuthRequest, res) => {
 router.delete('/:id', async (req: AuthRequest, res) => {
   try {
     const { id } = req.params;
-    await prisma.skill.delete({
-      where: { id, userId: req.userId }
-    });
-    res.json({ message: 'Skill deleted' });
+    const existing = await prisma.skill.findUnique({ where: { id } });
+
+    if (!existing || existing.userId !== req.userId) {
+      return res.status(404).json({ error: 'Skill not found' });
+    }
+
+    await prisma.skill.delete({ where: { id } });
+    res.json({ message: 'Skill deleted successfully' });
   } catch (error) {
+    console.error('Error deleting skill:', error);
     res.status(500).json({ error: 'Error deleting skill' });
   }
 });
+
+// Get skill statistics
+router.get('/:id/stats', async (req: AuthRequest, res) => {
+  try {
+    const { id } = req.params;
+    const skill = await prisma.skill.findUnique({
+      where: { id },
+      include: {
+        milestones: true,
+        learningResources: true
+      }
+    });
+
+    if (!skill || skill.userId !== req.userId) {
+      return res.status(404).json({ error: 'Skill not found' });
+    }
+
+    const totalMilestones = skill.milestones.length;
+    const completedMilestones = skill.milestones.filter(m => m.completed).length;
+    const progress = totalMilestones > 0 ? (completedMilestones / totalMilestones) * 100 : 0;
+
+    res.json({
+      totalMilestones,
+      completedMilestones,
+      progress,
+      resourceCount: skill.learningResources.length,
+      timeSpent: skill.timeSpent
+    });
+  } catch (error) {
+    console.error('Error fetching skill stats:', error);
+    res.status(500).json({ error: 'Error fetching skill statistics' });
+  }
+});
+
+// ===========================
+// MILESTONES ENDPOINTS
+// ===========================
+
+// Get milestones for a skill
+router.get('/:skillId/milestones', async (req: AuthRequest, res) => {
+  try {
+    const { skillId } = req.params;
+    const skill = await prisma.skill.findUnique({ where: { id: skillId } });
+
+    if (!skill || skill.userId !== req.userId) {
+      return res.status(404).json({ error: 'Skill not found' });
+    }
+
+    const milestones = await prisma.milestone.findMany({
+      where: { skillId },
+      orderBy: { order: 'asc' }
+    });
+
+    res.json(milestones);
+  } catch (error) {
+    console.error('Error fetching milestones:', error);
+    res.status(500).json({ error: 'Error fetching milestones' });
+  }
+});
+
+// Add milestone to skill
+router.post('/:skillId/milestones', async (req: AuthRequest, res) => {
+  try {
+    const { skillId } = req.params;
+    const { name, completed, order } = req.body;
+
+    const skill = await prisma.skill.findUnique({ where: { id: skillId } });
+    if (!skill || skill.userId !== req.userId) {
+      return res.status(404).json({ error: 'Skill not found' });
+    }
+
+    const milestone = await prisma.milestone.create({
+      data: {
+        skillId,
+        userId: req.userId!,
+        name,
+        completed: completed || false,
+        order: order || 0
+      }
+    });
+
+    // Recalculate skill progress
+    await updateSkillProgress(skillId);
+
+    res.status(201).json(milestone);
+  } catch (error) {
+    console.error('Error creating milestone:', error);
+    res.status(500).json({ error: 'Error creating milestone' });
+  }
+});
+
+// Update milestone
+router.put('/milestones/:id', async (req: AuthRequest, res) => {
+  try {
+    const { id } = req.params;
+    const existing = await prisma.milestone.findUnique({ where: { id } });
+
+    if (!existing || existing.userId !== req.userId) {
+      return res.status(404).json({ error: 'Milestone not found' });
+    }
+
+    const { name, completed, order } = req.body;
+
+    const milestone = await prisma.milestone.update({
+      where: { id },
+      data: { name, completed, order }
+    });
+
+    // Recalculate skill progress
+    await updateSkillProgress(existing.skillId);
+
+    res.json(milestone);
+  } catch (error) {
+    console.error('Error updating milestone:', error);
+    res.status(500).json({ error: 'Error updating milestone' });
+  }
+});
+
+// Toggle milestone completion
+router.patch('/milestones/:id/toggle', async (req: AuthRequest, res) => {
+  try {
+    const { id } = req.params;
+    const existing = await prisma.milestone.findUnique({ where: { id } });
+
+    if (!existing || existing.userId !== req.userId) {
+      return res.status(404).json({ error: 'Milestone not found' });
+    }
+
+    const milestone = await prisma.milestone.update({
+      where: { id },
+      data: { completed: !existing.completed }
+    });
+
+    // Recalculate skill progress
+    await updateSkillProgress(existing.skillId);
+
+    // Get updated skill progress
+    const skill = await prisma.skill.findUnique({
+      where: { id: existing.skillId },
+      select: { progress: true }
+    });
+
+    res.json({ milestone, skillProgress: skill?.progress });
+  } catch (error) {
+    console.error('Error toggling milestone:', error);
+    res.status(500).json({ error: 'Error toggling milestone' });
+  }
+});
+
+// Delete milestone
+router.delete('/milestones/:id', async (req: AuthRequest, res) => {
+  try {
+    const { id } = req.params;
+    const existing = await prisma.milestone.findUnique({ where: { id } });
+
+    if (!existing || existing.userId !== req.userId) {
+      return res.status(404).json({ error: 'Milestone not found' });
+    }
+
+    await prisma.milestone.delete({ where: { id } });
+
+    // Recalculate skill progress
+    await updateSkillProgress(existing.skillId);
+
+    res.json({ message: 'Milestone deleted successfully' });
+  } catch (error) {
+    console.error('Error deleting milestone:', error);
+    res.status(500).json({ error: 'Error deleting milestone' });
+  }
+});
+
+// ===========================
+// LEARNING RESOURCES ENDPOINTS
+// ===========================
+
+// Get resources for a skill
+router.get('/:skillId/resources', async (req: AuthRequest, res) => {
+  try {
+    const { skillId } = req.params;
+    const skill = await prisma.skill.findUnique({ where: { id: skillId } });
+
+    if (!skill || skill.userId !== req.userId) {
+      return res.status(404).json({ error: 'Skill not found' });
+    }
+
+    const resources = await prisma.learningResource.findMany({
+      where: { skillId },
+      orderBy: { createdAt: 'desc' }
+    });
+
+    res.json(resources);
+  } catch (error) {
+    console.error('Error fetching resources:', error);
+    res.status(500).json({ error: 'Error fetching learning resources' });
+  }
+});
+
+// Add learning resource
+router.post('/:skillId/resources', async (req: AuthRequest, res) => {
+  try {
+    const { skillId } = req.params;
+    const { title, type, url, content, description } = req.body;
+
+    const skill = await prisma.skill.findUnique({ where: { id: skillId } });
+    if (!skill || skill.userId !== req.userId) {
+      return res.status(404).json({ error: 'Skill not found' });
+    }
+
+    const resource = await prisma.learningResource.create({
+      data: {
+        skillId,
+        userId: req.userId!,
+        title,
+        type,
+        url,
+        content,
+        description
+      }
+    });
+
+    // Update resource count
+    const resourceCount = await prisma.learningResource.count({ where: { skillId } });
+    await prisma.skill.update({
+      where: { id: skillId },
+      data: { resourceCount }
+    });
+
+    res.status(201).json(resource);
+  } catch (error) {
+    console.error('Error creating resource:', error);
+    res.status(500).json({ error: 'Error creating learning resource' });
+  }
+});
+
+// Update learning resource
+router.put('/resources/:id', async (req: AuthRequest, res) => {
+  try {
+    const { id } = req.params;
+    const existing = await prisma.learningResource.findUnique({ where: { id } });
+
+    if (!existing || existing.userId !== req.userId) {
+      return res.status(404).json({ error: 'Resource not found' });
+    }
+
+    const { title, type, url, content, description } = req.body;
+
+    const resource = await prisma.learningResource.update({
+      where: { id },
+      data: { title, type, url, content, description }
+    });
+
+    res.json(resource);
+  } catch (error) {
+    console.error('Error updating resource:', error);
+    res.status(500).json({ error: 'Error updating learning resource' });
+  }
+});
+
+// Delete learning resource
+router.delete('/resources/:id', async (req: AuthRequest, res) => {
+  try {
+    const { id } = req.params;
+    const existing = await prisma.learningResource.findUnique({ where: { id } });
+
+    if (!existing || existing.userId !== req.userId) {
+      return res.status(404).json({ error: 'Resource not found' });
+    }
+
+    await prisma.learningResource.delete({ where: { id } });
+
+    // Update resource count
+    const resourceCount = await prisma.learningResource.count({ where: { skillId: existing.skillId } });
+    await prisma.skill.update({
+      where: { id: existing.skillId },
+      data: { resourceCount }
+    });
+
+    res.json({ message: 'Learning resource deleted successfully' });
+  } catch (error) {
+    console.error('Error deleting resource:', error);
+    res.status(500).json({ error: 'Error deleting learning resource' });
+  }
+});
+
+// ===========================
+// AI RECOMMENDATIONS ENDPOINTS
+// ===========================
+
+// Get AI recommendations for user
+router.get('/recommendations/all', async (req: AuthRequest, res) => {
+  try {
+    const recommendations = await prisma.aIRecommendation.findMany({
+      where: { userId: req.userId!, completed: false },
+      include: {
+        skill: {
+          select: { name: true }
+        }
+      },
+      orderBy: [
+        { priority: 'desc' },
+        { createdAt: 'desc' }
+      ]
+    });
+
+    res.json(recommendations);
+  } catch (error) {
+    console.error('Error fetching recommendations:', error);
+    res.status(500).json({ error: 'Error fetching AI recommendations' });
+  }
+});
+
+// Generate AI recommendations (mock - will be replaced with LangChain)
+router.post('/recommendations/generate', async (req: AuthRequest, res) => {
+  try {
+    // Mock AI recommendations based on user's skills
+    const skills = await prisma.skill.findMany({
+      where: { userId: req.userId! },
+      include: { milestones: true }
+    });
+
+    const recommendations = [];
+
+    for (const skill of skills) {
+      // Find incomplete milestones
+      const incompleteMilestones = skill.milestones.filter(m => !m.completed);
+      
+      if (incompleteMilestones.length > 0 && skill.progress < 100) {
+        const nextMilestone = incompleteMilestones[0];
+        
+        // Create recommendation for next milestone
+        const priority = skill.progress > 50 ? 'high' : skill.progress > 25 ? 'medium' : 'low';
+        
+        recommendations.push({
+          userId: req.userId!,
+          skillId: skill.id,
+          title: `Complete: ${nextMilestone.name}`,
+          priority,
+          estimatedTime: '2-3 hours',
+          reason: `You're ${skill.progress.toFixed(0)}% through ${skill.name}. This is the next logical step.`
+        });
+      }
+    }
+
+    // Create recommendations in database
+    const created = await Promise.all(
+      recommendations.slice(0, 3).map(rec =>
+        prisma.aIRecommendation.create({ data: rec })
+      )
+    );
+
+    res.json(created);
+  } catch (error) {
+    console.error('Error generating recommendations:', error);
+    res.status(500).json({ error: 'Error generating AI recommendations' });
+  }
+});
+
+// Mark recommendation as completed
+router.patch('/recommendations/:id/complete', async (req: AuthRequest, res) => {
+  try {
+    const { id } = req.params;
+    const existing = await prisma.aIRecommendation.findUnique({ where: { id } });
+
+    if (!existing || existing.userId !== req.userId) {
+      return res.status(404).json({ error: 'Recommendation not found' });
+    }
+
+    const recommendation = await prisma.aIRecommendation.update({
+      where: { id },
+      data: { completed: true }
+    });
+
+    res.json(recommendation);
+  } catch (error) {
+    console.error('Error completing recommendation:', error);
+    res.status(500).json({ error: 'Error completing recommendation' });
+  }
+});
+
+// Delete recommendation
+router.delete('/recommendations/:id', async (req: AuthRequest, res) => {
+  try {
+    const { id } = req.params;
+    const existing = await prisma.aIRecommendation.findUnique({ where: { id } });
+
+    if (!existing || existing.userId !== req.userId) {
+      return res.status(404).json({ error: 'Recommendation not found' });
+    }
+
+    await prisma.aIRecommendation.delete({ where: { id } });
+    res.json({ message: 'Recommendation deleted successfully' });
+  } catch (error) {
+    console.error('Error deleting recommendation:', error);
+    res.status(500).json({ error: 'Error deleting recommendation' });
+  }
+});
+
+// ===========================
+// HELPER FUNCTIONS
+// ===========================
+
+async function updateSkillProgress(skillId: string) {
+  const milestones = await prisma.milestone.findMany({ where: { skillId } });
+  const totalMilestones = milestones.length;
+  const completedMilestones = milestones.filter(m => m.completed).length;
+  const progress = totalMilestones > 0 ? (completedMilestones / totalMilestones) * 100 : 0;
+
+  await prisma.skill.update({
+    where: { id: skillId },
+    data: { progress }
+  });
+}
 
 export default router;

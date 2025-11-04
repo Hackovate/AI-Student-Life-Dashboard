@@ -279,9 +279,15 @@ export const tasksAPI = {
 };
 
 // Skills API
+// Skills API
 export const skillsAPI = {
+  // Skills CRUD
   getAll: async () => {
     return apiRequest<any[]>('/skills');
+  },
+
+  getById: async (id: string) => {
+    return apiRequest<any>(`/skills/${id}`);
   },
 
   create: async (data: any) => {
@@ -300,6 +306,89 @@ export const skillsAPI = {
 
   delete: async (id: string) => {
     return apiRequest<{ message: string }>(`/skills/${id}`, {
+      method: 'DELETE',
+    });
+  },
+
+  getStats: async (id: string) => {
+    return apiRequest<any>(`/skills/${id}/stats`);
+  },
+
+  // Milestones
+  getMilestones: async (skillId: string) => {
+    return apiRequest<any[]>(`/skills/${skillId}/milestones`);
+  },
+
+  addMilestone: async (skillId: string, data: { name: string; completed?: boolean; order?: number }) => {
+    return apiRequest<any>(`/skills/${skillId}/milestones`, {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  },
+
+  updateMilestone: async (milestoneId: string, data: { name?: string; completed?: boolean; order?: number }) => {
+    return apiRequest<any>(`/skills/milestones/${milestoneId}`, {
+      method: 'PUT',
+      body: JSON.stringify(data),
+    });
+  },
+
+  toggleMilestone: async (milestoneId: string) => {
+    return apiRequest<any>(`/skills/milestones/${milestoneId}/toggle`, {
+      method: 'PATCH',
+    });
+  },
+
+  deleteMilestone: async (milestoneId: string) => {
+    return apiRequest<{ message: string }>(`/skills/milestones/${milestoneId}`, {
+      method: 'DELETE',
+    });
+  },
+
+  // Learning Resources
+  getResources: async (skillId: string) => {
+    return apiRequest<any[]>(`/skills/${skillId}/resources`);
+  },
+
+  addResource: async (skillId: string, data: { title: string; type: string; url?: string; content?: string; description?: string }) => {
+    return apiRequest<any>(`/skills/${skillId}/resources`, {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  },
+
+  updateResource: async (resourceId: string, data: { title?: string; type?: string; url?: string; content?: string; description?: string }) => {
+    return apiRequest<any>(`/skills/resources/${resourceId}`, {
+      method: 'PUT',
+      body: JSON.stringify(data),
+    });
+  },
+
+  deleteResource: async (resourceId: string) => {
+    return apiRequest<{ message: string }>(`/skills/resources/${resourceId}`, {
+      method: 'DELETE',
+    });
+  },
+
+  // AI Recommendations
+  getRecommendations: async () => {
+    return apiRequest<any[]>('/skills/recommendations/all');
+  },
+
+  generateRecommendations: async () => {
+    return apiRequest<any[]>('/skills/recommendations/generate', {
+      method: 'POST',
+    });
+  },
+
+  completeRecommendation: async (recommendationId: string) => {
+    return apiRequest<any>(`/skills/recommendations/${recommendationId}/complete`, {
+      method: 'PATCH',
+    });
+  },
+
+  deleteRecommendation: async (recommendationId: string) => {
+    return apiRequest<{ message: string }>(`/skills/recommendations/${recommendationId}`, {
       method: 'DELETE',
     });
   },

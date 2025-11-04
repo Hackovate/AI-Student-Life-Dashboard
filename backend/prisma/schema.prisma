@@ -8,21 +8,24 @@ datasource db {
 }
 
 model User {
-  id            String      @id @default(uuid())
-  email         String      @unique
-  password      String
-  firstName     String?
-  lastName      String?
-  createdAt     DateTime    @default(now())
-  updatedAt     DateTime    @updatedAt
-  academics     Academic[]
-  finances      Finance[]
-  journals      Journal[]
-  lifestyleData Lifestyle[]
-  courses       Course[]
-  skills        Skill[]
-  tasks         Task[]
+  id                String             @id @default(uuid())
+  email             String             @unique
+  password          String
+  firstName         String?
+  lastName          String?
+  createdAt         DateTime           @default(now())
+  updatedAt         DateTime           @updatedAt
+  academics         Academic[]
+  finances          Finance[]
+  journals          Journal[]
+  lifestyleData     Lifestyle[]
+  courses           Course[]
+  skills            Skill[]
+  tasks             Task[]
   attendanceRecords AttendanceRecord[]
+  milestones        Milestone[]
+  learningResources LearningResource[]
+  aiRecommendations AIRecommendation[]
 
   @@map("users")
 }
@@ -155,17 +158,75 @@ model Task {
 }
 
 model Skill {
+  id                 String              @id @default(uuid())
+  userId             String
+  name               String
+  category           String?
+  level              String?             @default("beginner")
+  description        String?
+  progress           Float               @default(0) // 0-100 percentage
+  gradient           String?             // Color gradient for UI
+  nextTask           String?             // Next recommended task
+  timeSpent          String?             @default("0h") // Total learning hours
+  resourceCount      Int                 @default(0) // Number of resources
+  certificateUrl     String?             // URL/path to certificate file
+  createdAt          DateTime            @default(now())
+  updatedAt          DateTime            @updatedAt
+  user               User                @relation(fields: [userId], references: [id], onDelete: Cascade)
+  milestones         Milestone[]
+  learningResources  LearningResource[]
+  aiRecommendations  AIRecommendation[]
+
+  @@map("skills")
+}
+
+model Milestone {
+  id        String   @id @default(uuid())
+  skillId   String
+  userId    String
+  name      String
+  completed Boolean  @default(false)
+  order     Int      @default(0) // Display order
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  skill     Skill    @relation(fields: [skillId], references: [id], onDelete: Cascade)
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("milestones")
+}
+
+model LearningResource {
   id          String   @id @default(uuid())
+  skillId     String
   userId      String
-  name        String
-  category    String?
-  level       String?  @default("beginner")
+  title       String
+  type        String   // "link", "note", "file"
+  url         String?  // For links and files
+  content     String?  // For notes
   description String?
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
+  skill       Skill    @relation(fields: [skillId], references: [id], onDelete: Cascade)
   user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 
-  @@map("skills")
+  @@map("learning_resources")
+}
+
+model AIRecommendation {
+  id            String   @id @default(uuid())
+  userId        String
+  skillId       String?  // Optional - can be general recommendation
+  title         String
+  priority      String   @default("medium") // "high", "medium", "low"
+  estimatedTime String?
+  reason        String?
+  completed     Boolean  @default(false)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+  user          User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  skill         Skill?   @relation(fields: [skillId], references: [id], onDelete: Cascade)
+
+  @@map("ai_recommendations")
 }
 
 model Lifestyle {
