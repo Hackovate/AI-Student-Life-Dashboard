@@ -126,6 +126,73 @@ export const academicsAPI = {
   },
 };
 
+// Courses API (same as academics endpoints)
+export const coursesAPI = {
+  getAll: async () => {
+    return apiRequest<any[]>('/academics');
+  },
+  create: async (data: any) => {
+    return apiRequest<any>('/academics', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  },
+  update: async (id: string, data: any) => {
+    return apiRequest<any>(`/academics/${id}`, {
+      method: 'PUT',
+      body: JSON.stringify(data),
+    });
+  },
+  delete: async (id: string) => {
+    return apiRequest<{ message: string }>(`/academics/${id}`, {
+      method: 'DELETE',
+    });
+  },
+  // schedule/assignments/exams nested endpoints
+  getSchedule: async (courseId: string) => apiRequest<any[]>(`/academics/${courseId}/schedule`),
+  createSchedule: async (courseId: string, data: any) => apiRequest<any>(`/academics/${courseId}/schedule`, { method: 'POST', body: JSON.stringify(data) }),
+  updateSchedule: async (id: string, data: any) => apiRequest<any>(`/academics/schedule/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
+  deleteSchedule: async (id: string) => apiRequest<{ message: string }>(`/academics/schedule/${id}`, { method: 'DELETE' }),
+
+  getAssignments: async (courseId: string) => apiRequest<any[]>(`/academics/${courseId}/assignments`),
+  createAssignment: async (courseId: string, data: any) => apiRequest<any>(`/academics/${courseId}/assignments`, { method: 'POST', body: JSON.stringify(data) }),
+  updateAssignment: async (id: string, data: any) => apiRequest<any>(`/academics/assignments/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
+  deleteAssignment: async (id: string) => apiRequest<{ message: string }>(`/academics/assignments/${id}`, { method: 'DELETE' }),
+
+  getExams: async (courseId: string) => apiRequest<any[]>(`/academics/${courseId}/exams`),
+  createExam: async (courseId: string, data: any) => apiRequest<any>(`/academics/${courseId}/exams`, { method: 'POST', body: JSON.stringify(data) }),
+  updateExam: async (id: string, data: any) => apiRequest<any>(`/academics/exams/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
+  deleteExam: async (id: string) => apiRequest<{ message: string }>(`/academics/exams/${id}`, { method: 'DELETE' }),
+};
+
+// Attendance API
+export const attendanceAPI = {
+  // Get today's class schedules with attendance status
+  getTodaysClasses: async (courseId: string) => 
+    apiRequest<any[]>(`/attendance/${courseId}/today`),
+  
+  // Get all class schedules with attendance history
+  getAllSchedules: async (courseId: string) => 
+    apiRequest<any[]>(`/attendance/${courseId}/all`),
+  
+  // Mark attendance for a specific class schedule
+  markAttendance: async (courseId: string, classScheduleId: string, status: string, date?: string, notes?: string) => 
+    apiRequest<any>(`/attendance/${courseId}/mark`, { 
+      method: 'POST', 
+      body: JSON.stringify({ classScheduleId, status, date, notes }) 
+    }),
+  
+  // Delete attendance record
+  deleteRecord: async (recordId: string) => 
+    apiRequest<{ message: string; attendancePercentage: number }>(`/attendance/${recordId}`, { 
+      method: 'DELETE' 
+    }),
+  
+  // Get attendance statistics (schedule-based)
+  getStats: async (courseId: string) => 
+    apiRequest<any>(`/attendance/${courseId}/stats`),
+};
+
 // Finance API
 export const financeAPI = {
   getAll: async () => {
@@ -273,4 +340,5 @@ export default {
   tasks: tasksAPI,
   skills: skillsAPI,
   lifestyle: lifestyleAPI,
+  courses: coursesAPI,
 };

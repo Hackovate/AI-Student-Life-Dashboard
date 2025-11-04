@@ -9,6 +9,7 @@ import journalRoutes from './routes/journal.routes';
 import taskRoutes from './routes/task.routes';
 import skillRoutes from './routes/skill.routes';
 import lifestyleRoutes from './routes/lifestyle.routes';
+import attendanceRoutes from './routes/attendance.routes';
 
 // Load environment variables
 dotenv.config();
@@ -33,6 +34,7 @@ app.use('/api/journals', journalRoutes);
 app.use('/api/tasks', taskRoutes);
 app.use('/api/skills', skillRoutes);
 app.use('/api/lifestyle', lifestyleRoutes);
+app.use('/api/attendance', attendanceRoutes);
 
 // Health check route
 app.get('/api/health', (req, res) => {

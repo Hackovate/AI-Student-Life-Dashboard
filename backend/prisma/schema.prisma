@@ -19,8 +19,10 @@ model User {
   finances      Finance[]
   journals      Journal[]
   lifestyleData Lifestyle[]
+  courses       Course[]
   skills        Skill[]
   tasks         Task[]
+  attendanceRecords AttendanceRecord[]
 
   @@map("users")
 }
@@ -39,6 +41,73 @@ model Academic {
   user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@map("academics")
+}
+
+model Course {
+  id            String          @id @default(uuid())
+  userId        String
+  courseName    String
+  courseCode    String?
+  description   String?
+  grade         String?
+  credits       Int?
+  semester      String?
+  year          Int?
+  status        String?         @default("ongoing")
+  progress      Int?             // 0-100
+  attendance    Float?           // percentage 0-100
+  createdAt     DateTime        @default(now())
+  updatedAt     DateTime        @updatedAt
+  user          User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  classSchedule ClassSchedule[]
+  assignments   Assignment[]
+  exams         Exam[]
+  attendanceRecords AttendanceRecord[]
+
+  @@map("courses")
+}
+
+model ClassSchedule {
+  id        String   @id @default(uuid())
+  courseId  String
+  day       String   // Mon, Tue, etc.
+  time      String   // e.g. "09:00"
+  type      String?  // Lecture, Lab, Tutorial
+  location  String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  course    Course   @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  attendanceRecords AttendanceRecord[]
+
+  @@map("class_schedules")
+}
+
+model Assignment {
+  id          String   @id @default(uuid())
+  courseId    String
+  title       String
+  description String?
+  dueDate     DateTime?
+  status      String   @default("pending")
+  points      Int?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  course      Course   @relation(fields: [courseId], references: [id], onDelete: Cascade)
+
+  @@map("assignments")
+}
+
+model Exam {
+  id          String   @id @default(uuid())
+  courseId    String
+  title       String?
+  date        DateTime
+  type        String?  // Midterm, Quiz, Final
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  course      Course   @relation(fields: [courseId], references: [id], onDelete: Cascade)
+
+  @@map("exams")
 }
 
 model Finance {
@@ -114,4 +183,22 @@ model Lifestyle {
   user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@map("lifestyle")
+}
+
+model AttendanceRecord {
+  id              String        @id @default(uuid())
+  courseId        String
+  userId          String
+  classScheduleId String
+  date            DateTime      // The specific date this class occurred
+  status          String        // "present", "absent", "late"
+  notes           String?
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+  course          Course        @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  user            User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  classSchedule   ClassSchedule @relation(fields: [classScheduleId], references: [id], onDelete: Cascade)
+
+  @@unique([classScheduleId, userId, date])
+  @@map("attendance_records")
 }
