@@ -20,7 +20,9 @@ export function AssignmentModal({ open, onClose, onSave, assignment, mode, cours
   const [formData, setFormData] = useState({
     title: '',
     description: '',
+    startDate: '',
     dueDate: '',
+    estimatedHours: '',
     status: 'pending',
   });
 
@@ -29,14 +31,18 @@ export function AssignmentModal({ open, onClose, onSave, assignment, mode, cours
       setFormData({
         title: assignment.title || '',
         description: assignment.description || '',
+        startDate: assignment.startDate ? new Date(assignment.startDate).toISOString().split('T')[0] : '',
         dueDate: assignment.dueDate ? new Date(assignment.dueDate).toISOString().split('T')[0] : '',
+        estimatedHours: assignment.estimatedHours || '',
         status: assignment.status || 'pending',
       });
     } else {
       setFormData({
         title: '',
         description: '',
+        startDate: '',
         dueDate: '',
+        estimatedHours: '',
         status: 'pending',
       });
     }
@@ -50,72 +56,113 @@ export function AssignmentModal({ open, onClose, onSave, assignment, mode, cours
 
   return (
     <Dialog open={open} onOpenChange={onClose}>
-      <DialogContent className="max-w-md">
-        <DialogHeader>
-          <DialogTitle>
-            {mode === 'create' ? 'Add Assignment' : 'Edit Assignment'} - {courseName}
+      <DialogContent className="max-w-lg">
+        <DialogHeader className="pb-2">
+          <DialogTitle className="text-lg">
+            {mode === 'create' ? 'Add Assignment' : 'Edit Assignment'}
           </DialogTitle>
-          <DialogDescription>
-            {mode === 'create' ? 'Create a new assignment for this course.' : 'Update assignment details.'}
+          <DialogDescription className="text-sm">
+            {courseName} - {mode === 'create' ? 'Create a new assignment' : 'Update assignment details'}
           </DialogDescription>
         </DialogHeader>
-        <form onSubmit={handleSubmit} className="space-y-4">
+        <form onSubmit={handleSubmit} className="space-y-3">
           {/* Title */}
           <div>
-            <Label htmlFor="title">Assignment Title *</Label>
+            <Label htmlFor="title" className="text-sm">Assignment Title *</Label>
             <Input
               id="title"
               value={formData.title}
               onChange={(e) => setFormData({ ...formData, title: e.target.value })}
               required
               placeholder="e.g., Homework 1 - Arrays"
+              className="mt-1"
             />
           </div>
 
           {/* Description */}
           <div>
-            <Label htmlFor="description">Description</Label>
+            <Label htmlFor="description" className="text-sm">Description</Label>
             <Textarea
               id="description"
               value={formData.description}
               onChange={(e) => setFormData({ ...formData, description: e.target.value })}
               placeholder="Assignment details..."
-              rows={4}
+              rows={2}
+              className="mt-1 text-sm"
             />
           </div>
 
-          {/* Submission Date */}
-          <div>
-            <Label htmlFor="dueDate">Submission Date</Label>
-            <Input
-              id="dueDate"
-              type="date"
-              value={formData.dueDate}
-              onChange={(e) => setFormData({ ...formData, dueDate: e.target.value })}
-            />
+          {/* Date Fields */}
+          <div className="grid grid-cols-2 gap-3">
+            {/* Start Date */}
+            <div>
+              <Label htmlFor="startDate" className="text-sm">Start Date</Label>
+              <Input
+                id="startDate"
+                type="date"
+                value={formData.startDate}
+                onChange={(e) => setFormData({ ...formData, startDate: e.target.value })}
+                className="mt-1"
+              />
+            </div>
+
+            {/* Submission Date */}
+            <div>
+              <Label htmlFor="dueDate" className="text-sm">Due Date *</Label>
+              <Input
+                id="dueDate"
+                type="date"
+                value={formData.dueDate}
+                onChange={(e) => setFormData({ ...formData, dueDate: e.target.value })}
+                required
+                className="mt-1"
+              />
+            </div>
           </div>
 
-          {/* Status */}
-          <div>
-            <Label htmlFor="status">Status</Label>
-            <Select value={formData.status} onValueChange={(value: string) => setFormData({ ...formData, status: value })}>
-              <SelectTrigger>
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="pending">Pending</SelectItem>
-                <SelectItem value="completed">Completed</SelectItem>
-                <SelectItem value="late">Late</SelectItem>
-              </SelectContent>
-            </Select>
+          {/* Estimated Time and Status */}
+          <div className="grid grid-cols-2 gap-3">
+            {/* Estimated Time */}
+            <div>
+              <Label htmlFor="estimatedHours" className="text-sm">Est. Hours</Label>
+              <Input
+                id="estimatedHours"
+                type="number"
+                min="0"
+                step="0.5"
+                value={formData.estimatedHours}
+                onChange={(e) => setFormData({ ...formData, estimatedHours: e.target.value })}
+                placeholder="e.g., 5"
+                className="mt-1"
+              />
+            </div>
+
+            {/* Status */}
+            <div>
+              <Label htmlFor="status" className="text-sm">Status</Label>
+              <Select 
+                value={formData.status} 
+                onValueChange={(value: string) => setFormData({ ...formData, status: value })}
+              >
+                <SelectTrigger className="mt-1">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="pending">Pending</SelectItem>
+                  <SelectItem value="in-progress">In Progress</SelectItem>
+                  <SelectItem value="completed">Completed</SelectItem>
+                  <SelectItem value="late">Late</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
           </div>
 
-          <DialogFooter>
-            <Button type="button" variant="outline" onClick={onClose}>
+          <DialogFooter className="pt-2">
+            <Button type="button" variant="outline" onClick={onClose} className="h-9">
               Cancel
             </Button>
-            <Button type="submit">
-              {mode === 'create' ? 'Create Assignment' : 'Save Changes'}
+            <Button type="submit" className="h-9">
+              {mode === 'create' ? 'Create' : 'Save'}
             </Button>
           </DialogFooter>
         </form>

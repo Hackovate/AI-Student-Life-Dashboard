@@ -50,77 +50,85 @@ export function ScheduleModal({ open, onClose, onSave, schedule, mode, courseNam
   return (
     <Dialog open={open} onOpenChange={onClose}>
       <DialogContent className="max-w-md">
-        <DialogHeader>
-          <DialogTitle>
-            {mode === 'create' ? 'Add Class Schedule' : 'Edit Class Schedule'} - {courseName}
+        <DialogHeader className="pb-2">
+          <DialogTitle className="text-lg">
+            {mode === 'create' ? 'Add Schedule' : 'Edit Schedule'}
           </DialogTitle>
-          <DialogDescription>
-            {mode === 'create' ? 'Add a new class time to your schedule.' : 'Update class schedule details.'}
+          <DialogDescription className="text-sm">
+            {courseName}
           </DialogDescription>
         </DialogHeader>
-        <form onSubmit={handleSubmit} className="space-y-4">
-          {/* Day */}
-          <div>
-            <Label htmlFor="day">Day *</Label>
-            <Select value={formData.day} onValueChange={(value: string) => setFormData({ ...formData, day: value })}>
-              <SelectTrigger>
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="Mon">Monday</SelectItem>
-                <SelectItem value="Tue">Tuesday</SelectItem>
-                <SelectItem value="Wed">Wednesday</SelectItem>
-                <SelectItem value="Thu">Thursday</SelectItem>
-                <SelectItem value="Fri">Friday</SelectItem>
-                <SelectItem value="Sat">Saturday</SelectItem>
-                <SelectItem value="Sun">Sunday</SelectItem>
-              </SelectContent>
-            </Select>
+        <form onSubmit={handleSubmit} className="space-y-3">
+          <div className="grid grid-cols-2 gap-3">
+            {/* Day */}
+            <div>
+              <Label htmlFor="day" className="text-sm">Day *</Label>
+              <Select value={formData.day} onValueChange={(value: string) => setFormData({ ...formData, day: value })}>
+                <SelectTrigger className="mt-1">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="Mon">Monday</SelectItem>
+                  <SelectItem value="Tue">Tuesday</SelectItem>
+                  <SelectItem value="Wed">Wednesday</SelectItem>
+                  <SelectItem value="Thu">Thursday</SelectItem>
+                  <SelectItem value="Fri">Friday</SelectItem>
+                  <SelectItem value="Sat">Saturday</SelectItem>
+                  <SelectItem value="Sun">Sunday</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
+            {/* Time */}
+            <div>
+              <Label htmlFor="time" className="text-sm">Time *</Label>
+              <Input
+                id="time"
+                type="time"
+                value={formData.time}
+                onChange={(e) => setFormData({ ...formData, time: e.target.value })}
+                required
+                className="mt-1"
+              />
+            </div>
           </div>
 
-          {/* Time */}
-          <div>
-            <Label htmlFor="time">Time *</Label>
-            <Input
-              id="time"
-              type="time"
-              value={formData.time}
-              onChange={(e) => setFormData({ ...formData, time: e.target.value })}
-              required
-            />
-          </div>
-
-          {/* Type */}
-          <div>
-            <Label htmlFor="type">Type</Label>
-            <Select value={formData.type} onValueChange={(value: string) => setFormData({ ...formData, type: value })}>
-              <SelectTrigger>
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
+          <div className="grid grid-cols-2 gap-3">
+            {/* Type */}
+            <div>
+              <Label htmlFor="type" className="text-sm">Type</Label>
+              <Select value={formData.type} onValueChange={(value: string) => setFormData({ ...formData, type: value })}>
+                <SelectTrigger className="mt-1">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
                 <SelectItem value="Lecture">Lecture</SelectItem>
                 <SelectItem value="Lab">Lab</SelectItem>
+                <SelectItem value="Tutorial">Tutorial</SelectItem>
+                <SelectItem value="Seminar">Seminar</SelectItem>
               </SelectContent>
             </Select>
           </div>
 
-          {/* Location */}
-          <div>
-            <Label htmlFor="location">Location</Label>
-            <Input
-              id="location"
-              value={formData.location}
-              onChange={(e) => setFormData({ ...formData, location: e.target.value })}
-              placeholder="e.g., Room 101, Building A"
-            />
+            {/* Location */}
+            <div>
+              <Label htmlFor="location" className="text-sm">Location</Label>
+              <Input
+                id="location"
+                value={formData.location}
+                onChange={(e) => setFormData({ ...formData, location: e.target.value })}
+                placeholder="Room 101"
+                className="mt-1"
+              />
+            </div>
           </div>
 
-          <DialogFooter>
-            <Button type="button" variant="outline" onClick={onClose}>
+          <DialogFooter className="pt-2">
+            <Button type="button" variant="outline" onClick={onClose} className="h-9">
               Cancel
             </Button>
-            <Button type="submit">
-              {mode === 'create' ? 'Add Schedule' : 'Save Changes'}
+            <Button type="submit" className="h-9">
+              {mode === 'create' ? 'Add' : 'Save'}
             </Button>
           </DialogFooter>
         </form>

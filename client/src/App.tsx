@@ -70,7 +70,7 @@ function AppContent() {
       {/* Main Content Area */}
       <div className="ml-64">
         {/* Top Navbar */}
-        <TopNavbar />
+        <TopNavbar onNavigateToAssistant={() => setActiveSection('assistant')} />
         
         {/* Page Content */}
         <main className="p-8">

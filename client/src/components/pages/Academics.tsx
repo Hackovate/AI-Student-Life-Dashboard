@@ -1,7 +1,6 @@
-import { Plus, FileText, AlertCircle, Pencil, Trash2, Clock, UserCheck } from 'lucide-react';
+import { Plus, AlertCircle, Pencil, Trash2, Clock } from 'lucide-react';
 import { Card } from '../ui/card';
 import { Button } from '../ui/button';
-import { Progress } from '../ui/progress';
 import { Badge } from '../ui/badge';
 import { useEffect, useState } from 'react';
 import { coursesAPI } from '@/lib/api';
@@ -28,10 +27,19 @@ export function Academics() {
   const [selectedExam, setSelectedExam] = useState<any>(null);
   const [selectedAssignment, setSelectedAssignment] = useState<any>(null);
   const [selectedSchedule, setSelectedSchedule] = useState<any>(null);
+  const [expandedCourses, setExpandedCourses] = useState<string[]>([]);
 
   useEffect(() => {
     loadData();
   }, []);
+
+  const toggleCourseExpanded = (courseId: string) => {
+    setExpandedCourses((prev) =>
+      prev.includes(courseId)
+        ? prev.filter((id) => id !== courseId)
+        : [...prev, courseId]
+    );
+  };
 
   const loadData = async () => {
     try {
@@ -272,17 +280,17 @@ export function Academics() {
       />
 
       {/* Header */}
-      <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between mb-4">
         <div>
-          <h1 className="text-foreground text-3xl mb-1">Academic Tracker</h1>
-          <p className="text-muted-foreground">Track your classes, assignments, and performance</p>
+          <h1 className="text-foreground text-2xl font-bold mb-1">Academic Tracker</h1>
+          <p className="text-muted-foreground text-sm">Track your classes, assignments, and performance</p>
         </div>
         <div className="flex gap-2">
-          <Button variant="outline" className="gap-2">
+          <Button variant="outline" className="gap-2 h-9">
             <Plus className="w-4 h-4" />
             Add Notes
           </Button>
-          <Button onClick={handleAddCourse} className="bg-primary hover:bg-primary/90 text-primary-foreground gap-2">
+          <Button onClick={handleAddCourse} className="bg-primary hover:bg-primary/90 text-primary-foreground gap-2 h-9">
             <Plus className="w-4 h-4" />
             Add Course
           </Button>
@@ -291,258 +299,326 @@ export function Academics() {
 
       {/* Subject Cards */}
       <div>
-        <h2 className="text-foreground mb-3">Your Subjects</h2>
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-          {subjects.map((subject) => (
-            <Card key={subject.id} className="p-4 border-border bg-card hover:shadow-lg transition-shadow">
-              <div className="flex items-start justify-between mb-3">
-                <div className="flex-1">
-                  <div className="flex items-center gap-2 mb-0.5">
-                    <h3 className="text-foreground">{subject.name}</h3>
+        <h2 className="text-foreground mb-3 font-semibold">Your Subjects</h2>
+        <div className="flex flex-wrap gap-3 md:gap-4">
+          {subjects.map((subject) => {
+            const isExpanded = expandedCourses.includes(subject.id);
+
+            return (
+              <Card
+                key={subject.id}
+                className="basis-[240px] max-w-[260px] shrink-0 grow-0 border border-border/60 bg-card rounded-xl shadow-sm hover:shadow-md transition-shadow"
+              >
+                <div className="p-4 flex flex-col gap-3">
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="min-w-0">
+                      <h3 className="text-sm font-semibold text-foreground truncate">{subject.name}</h3>
+                      <p className="text-xs text-muted-foreground mt-0.5 truncate">
+                        {subject.code || 'No course code'}
+                      </p>
+                    </div>
+                    <div className="flex items-center gap-2 shrink-0">
+                      {subject.grade && (
+                        <Badge variant="secondary" className="text-xs font-medium px-2 py-0.5">
+                          {subject.grade}
+                        </Badge>
+                      )}
+                      <div className="flex items-center gap-1">
+                        <button
+                          type="button"
+                          onClick={() => handleEditCourse(subject)}
+                          className="h-7 w-7 flex items-center justify-center rounded-full border border-border text-muted-foreground hover:bg-muted transition-colors"
+                          aria-label="Edit course"
+                        >
+                          <Pencil className="w-3.5 h-3.5" />
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => handleDeleteCourse(subject.id)}
+                          className="h-7 w-7 flex items-center justify-center rounded-full border border-border text-destructive hover:bg-destructive/10 transition-colors"
+                          aria-label="Delete course"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => toggleCourseExpanded(subject.id)}
+                          className="h-7 w-7 flex items-center justify-center rounded-full border border-border text-muted-foreground hover:bg-muted transition-transform"
+                          aria-label={isExpanded ? 'Collapse course details' : 'Expand course details'}
+                        >
+                          <svg
+                            className={`w-3.5 h-3.5 transform transition-transform ${isExpanded ? 'rotate-180' : ''}`}
+                            viewBox="0 0 24 24"
+                            fill="none"
+                            stroke="currentColor"
+                            strokeWidth="2"
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                          >
+                            <path d="M6 9l6 6 6-6" />
+                          </svg>
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="flex flex-col items-start gap-2">
                     <Button
-                      variant="ghost"
-                      size="icon"
-                      className="h-6 w-6"
-                      onClick={() => handleEditCourse(subject)}
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      className="justify-center"
+                      onClick={() => handleAddSchedule(subject.id)}
                     >
-                      <Pencil className="w-3 h-3" />
+                      Schedule
                     </Button>
                     <Button
-                      variant="ghost"
-                      size="icon"
-                      className="h-6 w-6 text-destructive hover:text-destructive"
-                      onClick={() => handleDeleteCourse(subject.id)}
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      className="justify-center"
+                      onClick={() => handleAddAssignment(subject.id)}
                     >
-                      <Trash2 className="w-3 h-3" />
+                      Assignment &amp; Task
+                    </Button>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      className="justify-center"
+                      onClick={() => {
+                        setSelectedCourse(subject);
+                        setAttendanceModalOpen(true);
+                      }}
+                    >
+                      Attendance
                     </Button>
                   </div>
-                  <p className="text-muted-foreground text-sm">{subject.code}</p>
-                </div>
-                <div className={`px-2.5 py-0.5 bg-gradient-to-r ${subject.color} rounded-lg`}>
-                  <p className="text-white text-sm">{subject.grade || 'N/A'}</p>
-                </div>
-              </div>
 
-              <div className="space-y-3">
-                <div>
-                  <div className="flex items-center justify-between text-sm mb-1.5">
-                    <span className="text-muted-foreground">Progress</span>
-                    <span className="text-foreground">{subject.progress}%</span>
-                  </div>
-                  <Progress value={subject.progress} className="h-2" />
-                </div>
+                  {isExpanded && (
+                    <div className="pt-3 border-t border-border/60 space-y-3 text-sm">
+                      <div className="flex flex-wrap items-center gap-3 text-xs text-muted-foreground">
+                        <span className="flex items-center gap-1.5">
+                          <Clock className="w-3.5 h-3.5" />
+                          <span className="font-medium text-foreground">{subject.nextClass}</span>
+                        </span>
+                        {subject.assignments > 0 && (
+                          <span>Pending tasks: <span className="font-semibold text-foreground">{subject.assignments}</span></span>
+                        )}
+                      </div>
 
-                <div className="flex items-center justify-between pt-2 border-t border-border">
-                  <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                    <Clock className="w-4 h-4" />
-                    <span>{subject.nextClass}</span>
-                  </div>
-                  {subject.assignments > 0 && (
-                    <Badge variant="outline" className="gap-1">
-                      <FileText className="w-3 h-3" />
-                      {subject.assignments} pending
-                    </Badge>
+                      {subject.classSchedule && subject.classSchedule.length > 0 && (
+                        <div className="space-y-2">
+                          <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Schedules</p>
+                          <div className="space-y-1.5">
+                            {subject.classSchedule.map((schedule: any) => (
+                              <div
+                                key={schedule.id}
+                                className="flex items-center justify-between gap-2 rounded-lg border border-border/60 px-3 py-1.5 text-xs"
+                              >
+                                <div className="flex flex-wrap items-center gap-2 text-muted-foreground">
+                                  <span className="text-foreground font-medium">{schedule.day}</span>
+                                  <span>•</span>
+                                  <span>{schedule.time}</span>
+                                  {schedule.type && (
+                                    <>
+                                      <span>•</span>
+                                      <span className="px-1.5 py-0.5 rounded-full bg-muted text-foreground">
+                                        {schedule.type}
+                                      </span>
+                                    </>
+                                  )}
+                                  {schedule.location && (
+                                    <>
+                                      <span>•</span>
+                                      <span>{schedule.location}</span>
+                                    </>
+                                  )}
+                                </div>
+                                <div className="flex items-center gap-1">
+                                  <Button
+                                    variant="ghost"
+                                    size="icon"
+                                    className="h-7 w-7"
+                                    onClick={() => handleEditSchedule(schedule, subject.id)}
+                                    aria-label="Edit schedule"
+                                  >
+                                    <Pencil className="w-3 h-3" />
+                                  </Button>
+                                  <Button
+                                    variant="ghost"
+                                    size="icon"
+                                    className="h-7 w-7 text-destructive"
+                                    onClick={() => handleDeleteSchedule(schedule.id)}
+                                    aria-label="Delete schedule"
+                                  >
+                                    <Trash2 className="w-3 h-3" />
+                                  </Button>
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+
+                      {subject.assignmentsList && subject.assignmentsList.length > 0 && (
+                        <div className="space-y-2">
+                          <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Assignments</p>
+                          <div className="space-y-1.5">
+                            {subject.assignmentsList.map((assignment: any) => (
+                              <div
+                                key={assignment.id}
+                                className="rounded-lg border border-border/60 px-3 py-2 text-xs"
+                              >
+                                <div className="flex items-center justify-between gap-2">
+                                  <span className="text-sm font-medium text-foreground truncate">
+                                    {assignment.title}
+                                  </span>
+                                  <Badge
+                                    variant={assignment.status === 'completed' ? 'default' : 'secondary'}
+                                    className="text-[0.65rem] capitalize"
+                                  >
+                                    {assignment.status}
+                                  </Badge>
+                                </div>
+                                <div className="flex flex-wrap items-center gap-3 mt-1 text-muted-foreground">
+                                  {assignment.dueDate && (
+                                    <span>
+                                      Due {new Date(assignment.dueDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+                                    </span>
+                                  )}
+                                  {assignment.estimatedHours && (
+                                    <span>Time {assignment.estimatedHours}h</span>
+                                  )}
+                                </div>
+                                <div className="mt-2 flex items-center justify-end gap-1">
+                                  <Button
+                                    variant="ghost"
+                                    size="icon"
+                                    className="h-7 w-7"
+                                    onClick={() => handleEditAssignment(assignment, subject.id)}
+                                    aria-label="Edit assignment"
+                                  >
+                                    <Pencil className="w-3 h-3" />
+                                  </Button>
+                                  <Button
+                                    variant="ghost"
+                                    size="icon"
+                                    className="h-7 w-7 text-destructive"
+                                    onClick={() => handleDeleteAssignment(assignment.id)}
+                                    aria-label="Delete assignment"
+                                  >
+                                    <Trash2 className="w-3 h-3" />
+                                  </Button>
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+
+                      {subject.examsList && subject.examsList.length > 0 && (
+                        <div className="space-y-2">
+                          <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Exams</p>
+                          <div className="space-y-1.5">
+                            {subject.examsList.map((exam: any) => (
+                              <div
+                                key={exam.id}
+                                className="flex items-center justify-between gap-2 rounded-lg border border-border/60 px-3 py-1.5 text-xs"
+                              >
+                                <div className="flex flex-wrap items-center gap-2 text-muted-foreground min-w-0">
+                                  <span className="text-foreground font-medium truncate">
+                                    {exam.title || exam.type}
+                                  </span>
+                                  <span>•</span>
+                                  <span>
+                                    {new Date(exam.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+                                  </span>
+                                  <Badge variant="outline" className="text-[0.65rem] uppercase tracking-wide">
+                                    {exam.type}
+                                  </Badge>
+                                </div>
+                                <div className="flex items-center gap-1">
+                                  <Button
+                                    variant="ghost"
+                                    size="icon"
+                                    className="h-7 w-7"
+                                    onClick={() => handleEditExam(exam)}
+                                    aria-label="Edit exam"
+                                  >
+                                    <Pencil className="w-3 h-3" />
+                                  </Button>
+                                  <Button
+                                    variant="ghost"
+                                    size="icon"
+                                    className="h-7 w-7 text-destructive"
+                                    onClick={() => handleDeleteExam(exam.id)}
+                                    aria-label="Delete exam"
+                                  >
+                                    <Trash2 className="w-3 h-3" />
+                                  </Button>
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+                    </div>
                   )}
                 </div>
-
-                {/* Action Buttons */}
-                <div className="grid grid-cols-3 gap-2 pt-2">
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    className="gap-1"
-                    onClick={() => handleAddSchedule(subject.id)}
-                  >
-                    <Plus className="w-3 h-3" />
-                    Schedule
-                  </Button>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    className="gap-1"
-                    onClick={() => handleAddAssignment(subject.id)}
-                  >
-                    <Plus className="w-3 h-3" />
-                    Assignment
-                  </Button>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    className="gap-1"
-                    onClick={() => {
-                      setSelectedCourse(subject);
-                      setAttendanceModalOpen(true);
-                    }}
-                  >
-                    <UserCheck className="w-3 h-3" />
-                    Attendance
-                  </Button>
-                </div>
-
-                {/* Schedules List */}
-                {subject.classSchedule && subject.classSchedule.length > 0 && (
-                  <div className="pt-2 border-t border-border">
-                    <p className="text-sm font-medium text-muted-foreground mb-2">Class Schedule</p>
-                    <div className="space-y-1">
-                      {subject.classSchedule.map((schedule: any) => (
-                        <div key={schedule.id} className="flex items-center justify-between text-xs p-2 bg-accent rounded">
-                          <span className="text-foreground">
-                            {schedule.day} - {schedule.time} ({schedule.type})
-                          </span>
-                          <div className="flex gap-1">
-                            <Button
-                              variant="ghost"
-                              size="icon"
-                              className="h-5 w-5"
-                              onClick={() => handleEditSchedule(schedule, subject.id)}
-                            >
-                              <Pencil className="w-3 h-3" />
-                            </Button>
-                            <Button
-                              variant="ghost"
-                              size="icon"
-                              className="h-5 w-5 text-destructive hover:text-destructive"
-                              onClick={() => handleDeleteSchedule(schedule.id)}
-                            >
-                              <Trash2 className="w-3 h-3" />
-                            </Button>
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                )}
-
-                {/* Assignments List */}
-                {subject.assignmentsList && subject.assignmentsList.length > 0 && (
-                  <div className="pt-2 border-t border-border">
-                    <p className="text-sm font-medium text-muted-foreground mb-2">Assignments</p>
-                    <div className="space-y-1">
-                      {subject.assignmentsList.map((assignment: any) => (
-                        <div key={assignment.id} className="flex items-center justify-between text-xs p-2 bg-accent rounded">
-                          <div>
-                            <span className="text-foreground font-medium">{assignment.title}</span>
-                            <span className="text-muted-foreground ml-2">
-                              {assignment.dueDate ? new Date(assignment.dueDate).toLocaleDateString() : 'No date'}
-                            </span>
-                          </div>
-                          <div className="flex gap-1">
-                            <Badge variant={assignment.status === 'completed' ? 'default' : 'secondary'} className="text-xs">
-                              {assignment.status}
-                            </Badge>
-                            <Button
-                              variant="ghost"
-                              size="icon"
-                              className="h-5 w-5"
-                              onClick={() => handleEditAssignment(assignment, subject.id)}
-                            >
-                              <Pencil className="w-3 h-3" />
-                            </Button>
-                            <Button
-                              variant="ghost"
-                              size="icon"
-                              className="h-5 w-5 text-destructive hover:text-destructive"
-                              onClick={() => handleDeleteAssignment(assignment.id)}
-                            >
-                              <Trash2 className="w-3 h-3" />
-                            </Button>
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                )}
-
-                {/* Exams List */}
-                {subject.examsList && subject.examsList.length > 0 && (
-                  <div className="pt-2 border-t border-border">
-                    <p className="text-sm font-medium text-muted-foreground mb-2">Exams</p>
-                    <div className="space-y-1">
-                      {subject.examsList.map((exam: any) => (
-                        <div key={exam.id} className="flex items-center justify-between text-xs p-2 bg-accent rounded">
-                          <div>
-                            <span className="text-foreground font-medium">{exam.title || exam.type}</span>
-                            <span className="text-muted-foreground ml-2">
-                              {new Date(exam.date).toLocaleDateString()}
-                            </span>
-                          </div>
-                          <div className="flex gap-1">
-                            <Badge variant="outline" className="text-xs">{exam.type}</Badge>
-                            <Button
-                              variant="ghost"
-                              size="icon"
-                              className="h-5 w-5"
-                              onClick={() => handleEditExam(exam)}
-                            >
-                              <Pencil className="w-3 h-3" />
-                            </Button>
-                            <Button
-                              variant="ghost"
-                              size="icon"
-                              className="h-5 w-5 text-destructive hover:text-destructive"
-                              onClick={() => handleDeleteExam(exam.id)}
-                            >
-                              <Trash2 className="w-3 h-3" />
-                            </Button>
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                )}
-              </div>
-            </Card>
-          ))}
+              </Card>
+            );
+          })}
         </div>
       </div>
 
       {/* Upcoming Exams & Performance */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
         {/* Upcoming Exams */}
-        <Card className="p-4 border-border bg-card">
-          <div className="flex items-center justify-between mb-3">
+        <Card className="p-3 border-border bg-card">
+          <div className="flex items-center justify-between mb-2">
             <div className="flex items-center gap-2">
-              <AlertCircle className="w-5 h-5 text-orange-500" />
-              <h2 className="text-foreground">Upcoming Exams</h2>
+              <AlertCircle className="w-4 h-4 text-orange-500" />
+              <h2 className="text-foreground font-semibold text-sm">Upcoming Exams</h2>
             </div>
-            <Button variant="outline" size="sm" onClick={() => handleAddExam()} className="gap-1">
+            <Button variant="outline" size="sm" onClick={() => handleAddExam()} className="gap-1 h-7 text-xs">
               <Plus className="w-3 h-3" />
-              Add Exam
+              Add
             </Button>
           </div>
-          <div className="space-y-2">
+          <div className="space-y-1.5">
             {upcomingExams.length === 0 && (
-              <p className="text-muted-foreground text-sm text-center py-4">No upcoming exams</p>
+              <p className="text-muted-foreground text-xs text-center py-6">No upcoming exams</p>
             )}
             {upcomingExams.map((exam) => (
-              <div key={exam.id} className="flex items-center justify-between p-3 bg-gradient-to-r from-orange-50 to-red-50 dark:from-orange-950 dark:to-red-950 border border-orange-200 dark:border-orange-800 rounded-lg">
-                <div className="flex-1">
-                  <p className="text-foreground mb-0.5">{exam.subject}</p>
-                  <p className="text-muted-foreground text-sm">{new Date(exam.date).toLocaleDateString()}</p>
+              <div key={exam.id} className="flex items-center justify-between p-2 bg-gradient-to-r from-orange-50 to-red-50 dark:from-orange-950 dark:to-red-950 border border-orange-200 dark:border-orange-800 rounded-lg">
+                <div className="flex-1 min-w-0">
+                  <p className="text-foreground text-sm font-medium truncate">{exam.subject}</p>
+                  <p className="text-muted-foreground text-xs">{new Date(exam.date).toLocaleDateString()}</p>
                 </div>
-                <div className="flex items-center gap-2">
+                <div className="flex items-center gap-1.5 shrink-0 ml-2">
                   <div className="text-right">
-                    <Badge className={`${exam.daysLeft <= 7 ? 'bg-red-500' : 'bg-orange-500'}`}>
+                    <Badge className={`${exam.daysLeft <= 7 ? 'bg-red-500' : 'bg-orange-500'} h-4 text-xs px-1.5`}>
                       {exam.type || 'Exam'}
                     </Badge>
-                    <p className="text-muted-foreground text-xs mt-0.5">{exam.daysLeft} days left</p>
+                    <p className="text-muted-foreground text-xs mt-0.5">{exam.daysLeft}d</p>
                   </div>
-                  <div className="flex flex-col gap-1">
+                  <div className="flex gap-0.5">
                     <Button
                       variant="ghost"
                       size="icon"
-                      className="h-6 w-6"
+                      className="h-5 w-5"
                       onClick={() => handleEditExam(exam)}
                     >
-                      <Pencil className="w-3 h-3" />
+                      <Pencil className="w-2.5 h-2.5" />
                     </Button>
                     <Button
                       variant="ghost"
                       size="icon"
-                      className="h-6 w-6 text-destructive hover:text-destructive"
+                      className="h-5 w-5 text-destructive hover:text-destructive"
                       onClick={() => handleDeleteExam(exam.id)}
                     >
-                      <Trash2 className="w-3 h-3" />
+                      <Trash2 className="w-2.5 h-2.5" />
                     </Button>
                   </div>
                 </div>
@@ -552,19 +628,19 @@ export function Academics() {
         </Card>
 
         {/* Summary */}
-        <Card className="p-4 border-border bg-card">
-          <div className="flex items-center justify-between mb-3">
-            <h2 className="text-foreground">Summary</h2>
-            <div className="text-sm text-muted-foreground">Updated just now</div>
+        <Card className="p-3 border-border bg-card">
+          <div className="flex items-center justify-between mb-2">
+            <h2 className="text-foreground font-semibold text-sm">Summary</h2>
+            <div className="text-xs text-muted-foreground">Updated now</div>
           </div>
           <div className="grid grid-cols-2 gap-2">
-            <div className="p-3 bg-blue-50 dark:bg-blue-950 border border-blue-200 dark:border-blue-800 rounded-lg">
-              <p className="text-blue-700 dark:text-blue-300 text-sm mb-0.5">Courses</p>
-              <p className="text-blue-900 dark:text-blue-100 text-2xl">{totalCourses}</p>
+            <div className="p-2.5 bg-blue-50 dark:bg-blue-950 border border-blue-200 dark:border-blue-800 rounded-lg">
+              <p className="text-blue-700 dark:text-blue-300 text-xs mb-0.5">Courses</p>
+              <p className="text-blue-900 dark:text-blue-100 text-xl font-semibold">{totalCourses}</p>
             </div>
-            <div className="p-3 bg-violet-50 dark:bg-violet-950 border border-violet-200 dark:border-violet-800 rounded-lg">
-              <p className="text-violet-700 dark:text-violet-300 text-sm mb-0.5">Pending Assignments</p>
-              <p className="text-violet-900 dark:text-violet-100 text-2xl">{totalPendingAssignments}</p>
+            <div className="p-2.5 bg-violet-50 dark:bg-violet-950 border border-violet-200 dark:border-violet-800 rounded-lg">
+              <p className="text-violet-700 dark:text-violet-300 text-xs mb-0.5">Pending</p>
+              <p className="text-violet-900 dark:text-violet-100 text-xl font-semibold">{totalPendingAssignments}</p>
             </div>
           </div>
         </Card>

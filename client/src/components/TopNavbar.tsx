@@ -12,7 +12,11 @@ import {
   DropdownMenuTrigger,
 } from './ui/dropdown-menu';
 
-export function TopNavbar() {
+interface TopNavbarProps {
+  onNavigateToAssistant?: () => void;
+}
+
+export function TopNavbar({ onNavigateToAssistant }: TopNavbarProps) {
   const { user, logout } = useAuth();
   const today = new Date().toLocaleDateString('en-US', { 
     weekday: 'long', 
@@ -53,7 +57,10 @@ export function TopNavbar() {
       {/* Right Actions */}
       <div className="flex items-center gap-3">
         {/* AI Assistant Button */}
-        <Button className="bg-primary hover:bg-primary/90 text-primary-foreground gap-2">
+        <Button 
+          className="bg-primary hover:bg-primary/90 text-primary-foreground gap-2"
+          onClick={onNavigateToAssistant}
+        >
           <Sparkles className="w-4 h-4" />
           AI Assistant
         </Button>
