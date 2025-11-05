@@ -65,7 +65,21 @@ router.get('/:id', async (req: AuthRequest, res) => {
 // Create new skill
 router.post('/', async (req: AuthRequest, res) => {
   try {
-    const { name, category, level, description, gradient, nextTask, milestones } = req.body;
+    const { 
+      name, 
+      category, 
+      level, 
+      description, 
+      gradient, 
+      nextTask, 
+      milestones,
+      durationMonths,
+      estimatedHours,
+      startDate,
+      endDate,
+      goalStatement,
+      aiGenerated
+    } = req.body;
 
     const skill = await prisma.skill.create({
       data: {
@@ -78,7 +92,13 @@ router.post('/', async (req: AuthRequest, res) => {
         nextTask,
         progress: 0,
         timeSpent: '0h',
-        resourceCount: 0
+        resourceCount: 0,
+        durationMonths: durationMonths ? parseInt(durationMonths) : null,
+        estimatedHours: estimatedHours ? parseFloat(estimatedHours) : null,
+        startDate: startDate ? new Date(startDate) : null,
+        endDate: endDate ? new Date(endDate) : null,
+        goalStatement: goalStatement || null,
+        aiGenerated: aiGenerated || false
       }
     });
 
@@ -126,7 +146,21 @@ router.put('/:id', async (req: AuthRequest, res) => {
       return res.status(404).json({ error: 'Skill not found' });
     }
 
-    const { name, category, level, description, gradient, nextTask, timeSpent, certificateUrl } = req.body;
+    const { 
+      name, 
+      category, 
+      level, 
+      description, 
+      gradient, 
+      nextTask, 
+      timeSpent, 
+      certificateUrl,
+      durationMonths,
+      estimatedHours,
+      startDate,
+      endDate,
+      goalStatement
+    } = req.body;
 
     const skill = await prisma.skill.update({
       where: { id },
@@ -138,7 +172,12 @@ router.put('/:id', async (req: AuthRequest, res) => {
         gradient,
         nextTask,
         timeSpent,
-        certificateUrl
+        certificateUrl,
+        durationMonths: durationMonths !== undefined ? (durationMonths ? parseInt(durationMonths) : null) : undefined,
+        estimatedHours: estimatedHours !== undefined ? (estimatedHours ? parseFloat(estimatedHours) : null) : undefined,
+        startDate: startDate !== undefined ? (startDate ? new Date(startDate) : null) : undefined,
+        endDate: endDate !== undefined ? (endDate ? new Date(endDate) : null) : undefined,
+        goalStatement: goalStatement !== undefined ? goalStatement : undefined
       },
       include: {
         milestones: {
@@ -566,6 +605,115 @@ router.delete('/recommendations/:id', async (req: AuthRequest, res) => {
   } catch (error) {
     console.error('Error deleting recommendation:', error);
     res.status(500).json({ error: 'Error deleting recommendation' });
+  }
+});
+
+// ===========================
+// AI GENERATION ENDPOINT (Future)
+// ===========================
+
+// AI-powered skill generation endpoint
+// This endpoint accepts the same structured payload as manual creation
+// Future AI microservice will POST to this endpoint with generated skill data
+router.post('/ai-generate', async (req: AuthRequest, res) => {
+  try {
+    const { 
+      name, 
+      category, 
+      level, 
+      description, 
+      gradient, 
+      nextTask, 
+      milestones,
+      learningResources,
+      durationMonths,
+      estimatedHours,
+      startDate,
+      endDate,
+      goalStatement
+    } = req.body;
+
+    // Create skill with aiGenerated flag set to true
+    const skill = await prisma.skill.create({
+      data: {
+        userId: req.userId!,
+        name,
+        category,
+        level,
+        description,
+        gradient: gradient || 'from-violet-500 to-purple-500',
+        nextTask,
+        progress: 0,
+        timeSpent: '0h',
+        resourceCount: 0,
+        durationMonths: durationMonths ? parseInt(durationMonths) : null,
+        estimatedHours: estimatedHours ? parseFloat(estimatedHours) : null,
+        startDate: startDate ? new Date(startDate) : null,
+        endDate: endDate ? new Date(endDate) : null,
+        goalStatement: goalStatement || null,
+        aiGenerated: true // Mark as AI-generated
+      }
+    });
+
+    // Create milestones if provided
+    if (milestones && Array.isArray(milestones)) {
+      await Promise.all(
+        milestones.map((milestone: any, index: number) =>
+          prisma.milestone.create({
+            data: {
+              skillId: skill.id,
+              userId: req.userId!,
+              name: milestone.name,
+              completed: milestone.completed || false,
+              order: index
+            }
+          })
+        )
+      );
+    }
+
+    // Create learning resources if provided
+    if (learningResources && Array.isArray(learningResources)) {
+      await Promise.all(
+        learningResources.map((resource: any) =>
+          prisma.learningResource.create({
+            data: {
+              skillId: skill.id,
+              userId: req.userId!,
+              title: resource.title,
+              type: resource.type,
+              url: resource.url,
+              content: resource.content,
+              description: resource.description
+            }
+          })
+        )
+      );
+
+      // Update resource count
+      await prisma.skill.update({
+        where: { id: skill.id },
+        data: { resourceCount: learningResources.length }
+      });
+    }
+
+    // Fetch the complete skill with relations
+    const completeSkill = await prisma.skill.findUnique({
+      where: { id: skill.id },
+      include: {
+        milestones: {
+          orderBy: { order: 'asc' }
+        },
+        learningResources: {
+          orderBy: { createdAt: 'desc' }
+        }
+      }
+    });
+
+    res.status(201).json(completeSkill);
+  } catch (error) {
+    console.error('Error generating AI skill:', error);
+    res.status(500).json({ error: 'Error generating AI skill' });
   }
 });
 

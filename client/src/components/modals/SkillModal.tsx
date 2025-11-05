@@ -27,7 +27,12 @@ export function SkillModal({ open, onClose, onSave, skill, mode }: SkillModalPro
     category: 'Technical',
     level: 'beginner',
     description: '',
-    gradient: 'from-blue-500 to-cyan-500'
+    gradient: 'from-blue-500 to-cyan-500',
+    durationMonths: '',
+    estimatedHours: '',
+    startDate: '',
+    endDate: '',
+    goalStatement: ''
   });
 
   // Milestones
@@ -53,7 +58,12 @@ export function SkillModal({ open, onClose, onSave, skill, mode }: SkillModalPro
           category: skill.category || 'Technical',
           level: skill.level || 'beginner',
           description: skill.description || '',
-          gradient: skill.gradient || 'from-blue-500 to-cyan-500'
+          gradient: skill.gradient || 'from-blue-500 to-cyan-500',
+          durationMonths: skill.durationMonths?.toString() || '',
+          estimatedHours: skill.estimatedHours?.toString() || '',
+          startDate: skill.startDate ? new Date(skill.startDate).toISOString().split('T')[0] : '',
+          endDate: skill.endDate ? new Date(skill.endDate).toISOString().split('T')[0] : '',
+          goalStatement: skill.goalStatement || ''
         });
         setMilestones(skill.milestones || []);
         setResources(skill.learningResources || []);
@@ -69,7 +79,12 @@ export function SkillModal({ open, onClose, onSave, skill, mode }: SkillModalPro
       category: 'Technical',
       level: 'beginner',
       description: '',
-      gradient: 'from-blue-500 to-cyan-500'
+      gradient: 'from-blue-500 to-cyan-500',
+      durationMonths: '',
+      estimatedHours: '',
+      startDate: '',
+      endDate: '',
+      goalStatement: ''
     });
     setMilestones([]);
     setResources([]);
@@ -298,8 +313,84 @@ export function SkillModal({ open, onClose, onSave, skill, mode }: SkillModalPro
                   className="resize-none"
                 />
               </div>
+
+              <div>
+                <Label htmlFor="goalStatement" className="text-sm font-medium mb-2 block">
+                  Goal Statement <span className="text-xs text-muted-foreground">(Optional)</span>
+                </Label>
+                <Input
+                  id="goalStatement"
+                  value={formData.goalStatement}
+                  onChange={(e) => setFormData({ ...formData, goalStatement: e.target.value })}
+                  placeholder="e.g., Build and deploy 3 full-stack web applications"
+                  className="h-11"
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <Label htmlFor="durationMonths" className="text-sm font-medium mb-2 block">
+                    Target Duration (months) <span className="text-xs text-muted-foreground">(Optional)</span>
+                  </Label>
+                  <Input
+                    id="durationMonths"
+                    type="number"
+                    min="1"
+                    value={formData.durationMonths}
+                    onChange={(e) => setFormData({ ...formData, durationMonths: e.target.value })}
+                    placeholder="e.g., 6"
+                    className="h-11"
+                  />
+                </div>
+
+                <div>
+                  <Label htmlFor="estimatedHours" className="text-sm font-medium mb-2 block">
+                    Estimated Hours <span className="text-xs text-muted-foreground">(Optional)</span>
+                  </Label>
+                  <Input
+                    id="estimatedHours"
+                    type="number"
+                    min="1"
+                    step="0.5"
+                    value={formData.estimatedHours}
+                    onChange={(e) => setFormData({ ...formData, estimatedHours: e.target.value })}
+                    placeholder="e.g., 120"
+                    className="h-11"
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <Label htmlFor="startDate" className="text-sm font-medium mb-2 block">
+                    Start Date <span className="text-xs text-muted-foreground">(Optional)</span>
+                  </Label>
+                  <Input
+                    id="startDate"
+                    type="date"
+                    value={formData.startDate}
+                    onChange={(e) => setFormData({ ...formData, startDate: e.target.value })}
+                    className="h-11"
+                  />
+                </div>
+
+                <div>
+                  <Label htmlFor="endDate" className="text-sm font-medium mb-2 block">
+                    Target End Date <span className="text-xs text-muted-foreground">(Optional)</span>
+                  </Label>
+                  <Input
+                    id="endDate"
+                    type="date"
+                    value={formData.endDate}
+                    onChange={(e) => setFormData({ ...formData, endDate: e.target.value })}
+                    className="h-11"
+                  />
+                </div>
+              </div>
             </div>
-          )}          {/* Milestones Tab */}
+          )}
+
+          {/* Milestones Tab */}
           {currentTab === 'milestones' && (
             <div className="space-y-6 max-w-2xl">
               <div className="flex gap-3">

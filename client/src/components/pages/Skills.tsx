@@ -229,7 +229,15 @@ export function Skills() {
                 <div className="flex items-start justify-between mb-3">
                   <div className="flex-1">
                     <h3 className="text-gray-900 dark:text-gray-100 mb-0.5">{skill.name}</h3>
-                    <Badge variant="outline">{skill.category}</Badge>
+                    <div className="flex items-center gap-2">
+                      <Badge variant="outline">{skill.category}</Badge>
+                      {skill.aiGenerated && (
+                        <Badge variant="secondary" className="text-xs">
+                          <Sparkles className="w-3 h-3 mr-1" />
+                          AI Generated
+                        </Badge>
+                      )}
+                    </div>
                   </div>
                   <div className="flex items-center gap-1">
                     <div className={`px-3 py-1 bg-gradient-to-r ${skill.gradient} rounded-lg`}>
@@ -253,6 +261,40 @@ export function Skills() {
                     </Button>
                   </div>
                 </div>
+
+                {/* Goal Statement */}
+                {skill.goalStatement && (
+                  <div className="mb-3 p-2.5 bg-blue-50 dark:bg-blue-950 border border-blue-200 dark:border-blue-800 rounded-lg">
+                    <p className="text-blue-600 dark:text-blue-400 text-xs mb-0.5">Goal</p>
+                    <p className="text-gray-900 dark:text-gray-100 text-sm">{skill.goalStatement}</p>
+                  </div>
+                )}
+
+                {/* Timeline Info */}
+                {(skill.durationMonths || skill.estimatedHours || skill.startDate || skill.endDate) && (
+                  <div className="mb-3 flex flex-wrap gap-2 text-xs text-gray-600 dark:text-gray-400">
+                    {skill.durationMonths && (
+                      <span className="flex items-center gap-1 px-2 py-1 bg-gray-100 dark:bg-gray-800 rounded">
+                        📅 {skill.durationMonths} months
+                      </span>
+                    )}
+                    {skill.estimatedHours && (
+                      <span className="flex items-center gap-1 px-2 py-1 bg-gray-100 dark:bg-gray-800 rounded">
+                        ⏱️ {skill.estimatedHours}h estimated
+                      </span>
+                    )}
+                    {skill.startDate && (
+                      <span className="flex items-center gap-1 px-2 py-1 bg-gray-100 dark:bg-gray-800 rounded">
+                        🚀 Started {new Date(skill.startDate).toLocaleDateString()}
+                      </span>
+                    )}
+                    {skill.endDate && (
+                      <span className="flex items-center gap-1 px-2 py-1 bg-gray-100 dark:bg-gray-800 rounded">
+                        🎯 Target {new Date(skill.endDate).toLocaleDateString()}
+                      </span>
+                    )}
+                  </div>
+                )}
 
                 {/* Progress Bar */}
                 <div className="mb-3">
