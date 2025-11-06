@@ -4,6 +4,11 @@ import { StatCard } from '../StatCard';
 import { Card } from '../ui/card';
 import { Button } from '../ui/button';
 import { Badge } from '../ui/badge';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '../ui/dialog';
+import { Input } from '../ui/input';
+import { Label } from '../ui/label';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../ui/select';
+import { Textarea } from '../ui/textarea';
 import { 
   tasksAPI, 
   coursesAPI, 
@@ -11,7 +16,8 @@ import {
   savingsGoalAPI, 
   monthlyBudgetAPI,
   skillsAPI,
-  authAPI 
+  authAPI,
+  journalAPI
 } from '../../lib/api';
 import { toast } from 'sonner';
 
@@ -37,9 +43,49 @@ export function Dashboard({ onNavigate }: DashboardProps = {}) {
   const [savingsGoals, setSavingsGoals] = useState<any[]>([]);
   const [monthlyBudgets, setMonthlyBudgets] = useState<any[]>([]);
   const [skills, setSkills] = useState<any[]>([]);
+  const [currentTime, setCurrentTime] = useState(new Date());
+  
+  // Modal states
+  const [isTaskModalOpen, setIsTaskModalOpen] = useState(false);
+  const [isExpenseModalOpen, setIsExpenseModalOpen] = useState(false);
+  const [isJournalModalOpen, setIsJournalModalOpen] = useState(false);
+  
+  // Form states
+  const [newTask, setNewTask] = useState({
+    title: '',
+    description: '',
+    dueDate: '',
+    priority: 'medium' as 'low' | 'medium' | 'high',
+    status: 'pending'
+  });
+  
+  const [newExpense, setNewExpense] = useState({
+    description: '',
+    category: 'Food',
+    amount: '',
+    type: 'expense' as 'expense' | 'income' | 'savings',
+    goalId: ''
+  });
+  
+  const [newJournal, setNewJournal] = useState({
+    title: '',
+    content: '',
+    mood: 'neutral' as 'happy' | 'sad' | 'neutral' | 'anxious' | 'excited',
+    tags: ''
+  });
 
   useEffect(() => {
     loadDashboardData();
+    
+    // Force immediate time update
+    setCurrentTime(new Date());
+    
+    // Update time every minute to refresh greeting
+    const timeInterval = setInterval(() => {
+      setCurrentTime(new Date());
+    }, 60000); // Update every minute
+
+    return () => clearInterval(timeInterval);
   }, []);
 
   const loadDashboardData = async () => {
@@ -78,9 +124,110 @@ export function Dashboard({ onNavigate }: DashboardProps = {}) {
     }
   };
   
+  // Handler functions for Quick Actions
+  const handleAddTask = async () => {
+    if (!newTask.title) {
+      toast.error('Please enter a task title');
+      return;
+    }
+    
+    try {
+      await tasksAPI.create({
+        title: newTask.title,
+        description: newTask.description || null,
+        dueDate: newTask.dueDate || null,
+        priority: newTask.priority,
+        status: newTask.status
+      });
+      
+      toast.success('Task added successfully!');
+      setNewTask({ title: '', description: '', dueDate: '', priority: 'medium', status: 'pending' });
+      setIsTaskModalOpen(false);
+      await loadDashboardData();
+    } catch (error) {
+      console.error('Error adding task:', error);
+      toast.error('Failed to add task');
+    }
+  };
+  
+  const handleAddExpense = async () => {
+    if (!newExpense.description || !newExpense.amount) {
+      toast.error('Please fill in all required fields');
+      return;
+    }
+    
+    if (newExpense.type === 'savings' && !newExpense.goalId) {
+      toast.error('Please select a savings goal');
+      return;
+    }
+    
+    try {
+      const amount = parseFloat(newExpense.amount);
+      let category = newExpense.category;
+      let goalId = newExpense.goalId || undefined;
+      
+      // If it's a savings transaction, update the goal
+      if (newExpense.type === 'savings' && newExpense.goalId) {
+        const selectedGoal = savingsGoals.find(g => g.id === newExpense.goalId);
+        if (selectedGoal) {
+          category = selectedGoal.title;
+          const newCurrentAmount = (selectedGoal.currentAmount || 0) + amount;
+          await savingsGoalAPI.update(selectedGoal.id, {
+            currentAmount: newCurrentAmount,
+            status: newCurrentAmount >= selectedGoal.targetAmount ? 'completed' : selectedGoal.status
+          });
+        }
+      }
+      
+      await financeAPI.create({
+        category,
+        amount,
+        description: newExpense.description,
+        type: newExpense.type,
+        goalId
+      });
+      
+      const typeLabel = newExpense.type === 'income' ? 'Income' : newExpense.type === 'savings' ? 'Savings' : 'Expense';
+      toast.success(`${typeLabel} added successfully!`);
+      setNewExpense({ description: '', category: 'Food', amount: '', type: 'expense', goalId: '' });
+      setIsExpenseModalOpen(false);
+      await loadDashboardData();
+    } catch (error) {
+      console.error('Error adding expense:', error);
+      toast.error('Failed to add transaction');
+    }
+  };
+  
+  const handleAddJournal = async () => {
+    if (!newJournal.title || !newJournal.content) {
+      toast.error('Please fill in title and content');
+      return;
+    }
+    
+    try {
+      await journalAPI.create({
+        title: newJournal.title,
+        content: newJournal.content,
+        mood: newJournal.mood,
+        tags: newJournal.tags ? newJournal.tags.split(',').map(t => t.trim()) : []
+      });
+      
+      toast.success('Journal entry added successfully!');
+      setNewJournal({ title: '', content: '', mood: 'neutral', tags: '' });
+      setIsJournalModalOpen(false);
+      await loadDashboardData();
+    } catch (error) {
+      console.error('Error adding journal:', error);
+      toast.error('Failed to add journal entry');
+    }
+  };
+  
   const userName = user?.firstName || user?.email?.split('@')[0] || "Student";
-  const currentHour = new Date().getHours();
+  const currentHour = currentTime.getHours();
   const greeting = currentHour < 12 ? "Good Morning" : currentHour < 18 ? "Good Afternoon" : "Good Evening";
+  
+  // Debug: Log current time
+  console.log('Current hour:', currentHour, 'Greeting:', greeting);
 
   // Calculate stats from real data
   const completedTasks = tasks.filter(t => t.status === 'completed' || t.status === 'done').length;
@@ -125,7 +272,7 @@ export function Dashboard({ onNavigate }: DashboardProps = {}) {
     },
     {
       title: "Savings Balance",
-      value: `${monthlySummary.netSavings.toFixed(0)} BDT`,
+      value: `${currentSavings.toFixed(0)} BDT`,
       icon: Wallet,
       gradient: "bg-gradient-to-br from-violet-500 to-purple-500",
       subtext: totalSavingsGoal > 0 ? `${Math.round((currentSavings / totalSavingsGoal) * 100)}% of goal` : 'No goal set'
@@ -242,7 +389,7 @@ export function Dashboard({ onNavigate }: DashboardProps = {}) {
             <Button 
               variant="outline" 
               className="w-full justify-start gap-2"
-              onClick={() => navigate('/planner')}
+              onClick={() => setIsTaskModalOpen(true)}
             >
               <Plus className="w-4 h-4" />
               Add Task
@@ -250,7 +397,7 @@ export function Dashboard({ onNavigate }: DashboardProps = {}) {
             <Button 
               variant="outline" 
               className="w-full justify-start gap-2"
-              onClick={() => navigate('/finances')}
+              onClick={() => setIsExpenseModalOpen(true)}
             >
               <Plus className="w-4 h-4" />
               Log Expense
@@ -258,7 +405,7 @@ export function Dashboard({ onNavigate }: DashboardProps = {}) {
             <Button 
               variant="outline" 
               className="w-full justify-start gap-2"
-              onClick={() => navigate('/journal')}
+              onClick={() => setIsJournalModalOpen(true)}
             >
               <Plus className="w-4 h-4" />
               New Journal Entry
@@ -382,6 +529,253 @@ export function Dashboard({ onNavigate }: DashboardProps = {}) {
           </div>
         </div>
       </Card>
+      
+      {/* Add Task Modal */}
+      <Dialog open={isTaskModalOpen} onOpenChange={setIsTaskModalOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Add New Task</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 mt-4">
+            <div>
+              <Label htmlFor="task-title">Title *</Label>
+              <Input
+                id="task-title"
+                value={newTask.title}
+                onChange={(e) => setNewTask({ ...newTask, title: e.target.value })}
+                placeholder="Enter task title"
+              />
+            </div>
+            <div>
+              <Label htmlFor="task-description">Description</Label>
+              <Textarea
+                id="task-description"
+                value={newTask.description}
+                onChange={(e) => setNewTask({ ...newTask, description: e.target.value })}
+                placeholder="Enter task description"
+                rows={3}
+              />
+            </div>
+            <div>
+              <Label htmlFor="task-dueDate">Due Date</Label>
+              <Input
+                id="task-dueDate"
+                type="date"
+                value={newTask.dueDate}
+                onChange={(e) => setNewTask({ ...newTask, dueDate: e.target.value })}
+              />
+            </div>
+            <div>
+              <Label htmlFor="task-priority">Priority</Label>
+              <Select
+                value={newTask.priority}
+                onValueChange={(value: any) => setNewTask({ ...newTask, priority: value as 'low' | 'medium' | 'high' })}
+              >
+                <SelectTrigger id="task-priority">
+                  <SelectValue placeholder="Select priority" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="low">Low</SelectItem>
+                  <SelectItem value="medium">Medium</SelectItem>
+                  <SelectItem value="high">High</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div>
+              <Label htmlFor="task-status">Status</Label>
+              <Select
+                value={newTask.status}
+                onValueChange={(value: any) => setNewTask({ ...newTask, status: value as 'pending' | 'in-progress' | 'completed' })}
+              >
+                <SelectTrigger id="task-status">
+                  <SelectValue placeholder="Select status" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="pending">Pending</SelectItem>
+                  <SelectItem value="in-progress">In Progress</SelectItem>
+                  <SelectItem value="completed">Completed</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+          <DialogFooter className="mt-4">
+            <Button variant="outline" onClick={() => setIsTaskModalOpen(false)}>
+              Cancel
+            </Button>
+            <Button onClick={handleAddTask}>Add Task</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+      
+      {/* Add Expense Modal */}
+      <Dialog open={isExpenseModalOpen} onOpenChange={setIsExpenseModalOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Log Transaction</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 mt-4">
+            <div>
+              <Label htmlFor="expense-type">Transaction Type *</Label>
+              <Select
+                value={newExpense.type}
+                onValueChange={(value: any) => setNewExpense({ ...newExpense, type: value, goalId: value === 'savings' ? newExpense.goalId : '' })}
+              >
+                <SelectTrigger id="expense-type">
+                  <SelectValue placeholder="Select type" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="expense">Expense</SelectItem>
+                  <SelectItem value="income">Income</SelectItem>
+                  <SelectItem value="savings">Savings</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            
+            {newExpense.type === 'savings' ? (
+              <div>
+                <Label htmlFor="expense-goal">Savings Goal *</Label>
+                <Select
+                  value={newExpense.goalId}
+                  onValueChange={(value: any) => setNewExpense({ ...newExpense, goalId: value })}
+                >
+                  <SelectTrigger id="expense-goal">
+                    <SelectValue placeholder="Select goal" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {savingsGoals
+                      .filter(g => g.status === 'active')
+                      .map((goal) => (
+                        <SelectItem key={goal.id} value={goal.id}>
+                          {goal.title}
+                        </SelectItem>
+                      ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            ) : (
+              <div>
+                <Label htmlFor="expense-category">Category *</Label>
+                <Select
+                  value={newExpense.category}
+                  onValueChange={(value: any) => setNewExpense({ ...newExpense, category: value })}
+                >
+                  <SelectTrigger id="expense-category">
+                    <SelectValue placeholder="Select category" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="Food">Food</SelectItem>
+                    <SelectItem value="Transport">Transport</SelectItem>
+                    <SelectItem value="Entertainment">Entertainment</SelectItem>
+                    <SelectItem value="Education">Education</SelectItem>
+                    <SelectItem value="Health">Health</SelectItem>
+                    <SelectItem value="Shopping">Shopping</SelectItem>
+                    <SelectItem value="Bills">Bills</SelectItem>
+                    <SelectItem value="Salary">Salary</SelectItem>
+                    <SelectItem value="Freelance">Freelance</SelectItem>
+                    <SelectItem value="Gift">Gift</SelectItem>
+                    <SelectItem value="Other">Other</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
+            
+            <div>
+              <Label htmlFor="expense-amount">Amount (BDT) *</Label>
+              <Input
+                id="expense-amount"
+                type="number"
+                value={newExpense.amount}
+                onChange={(e) => setNewExpense({ ...newExpense, amount: e.target.value })}
+                placeholder="Enter amount"
+              />
+            </div>
+            <div>
+              <Label htmlFor="expense-description">Description *</Label>
+              <Textarea
+                id="expense-description"
+                value={newExpense.description}
+                onChange={(e) => setNewExpense({ ...newExpense, description: e.target.value })}
+                placeholder="Enter description"
+                rows={3}
+              />
+            </div>
+          </div>
+          <DialogFooter className="mt-4">
+            <Button variant="outline" onClick={() => setIsExpenseModalOpen(false)}>
+              Cancel
+            </Button>
+            <Button onClick={handleAddExpense}>
+              {newExpense.type === 'income' ? 'Add Income' : newExpense.type === 'savings' ? 'Add Savings' : 'Add Expense'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+      
+      {/* Add Journal Modal */}
+      <Dialog open={isJournalModalOpen} onOpenChange={setIsJournalModalOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>New Journal Entry</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 mt-4">
+            <div>
+              <Label htmlFor="journal-title">Title *</Label>
+              <Input
+                id="journal-title"
+                value={newJournal.title}
+                onChange={(e) => setNewJournal({ ...newJournal, title: e.target.value })}
+                placeholder="Enter journal title"
+              />
+            </div>
+            <div>
+              <Label htmlFor="journal-content">Content *</Label>
+              <Textarea
+                id="journal-content"
+                value={newJournal.content}
+                onChange={(e) => setNewJournal({ ...newJournal, content: e.target.value })}
+                placeholder="Write your thoughts..."
+                rows={6}
+              />
+            </div>
+            <div>
+              <Label htmlFor="journal-mood">Mood</Label>
+              <Select
+                value={newJournal.mood}
+                onValueChange={(value: any) => setNewJournal({ ...newJournal, mood: value })}
+              >
+                <SelectTrigger id="journal-mood">
+                  <SelectValue placeholder="Select mood" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="happy">Happy 😊</SelectItem>
+                  <SelectItem value="excited">Excited 🎉</SelectItem>
+                  <SelectItem value="calm">Calm 😌</SelectItem>
+                  <SelectItem value="neutral">Neutral 😐</SelectItem>
+                  <SelectItem value="tired">Tired 😴</SelectItem>
+                  <SelectItem value="stressed">Stressed 😰</SelectItem>
+                  <SelectItem value="sad">Sad 😢</SelectItem>
+                  <SelectItem value="anxious">Anxious 😟</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div>
+              <Label htmlFor="journal-tags">Tags (comma-separated)</Label>
+              <Input
+                id="journal-tags"
+                value={newJournal.tags}
+                onChange={(e) => setNewJournal({ ...newJournal, tags: e.target.value })}
+                placeholder="e.g., study, personal, work"
+              />
+            </div>
+          </div>
+          <DialogFooter className="mt-4">
+            <Button variant="outline" onClick={() => setIsJournalModalOpen(false)}>
+              Cancel
+            </Button>
+            <Button onClick={handleAddJournal}>Add Entry</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Plus, TrendingUp, TrendingDown, Wallet, ShoppingBag, Home, Utensils, GraduationCap, Heart, Trash2, Briefcase } from 'lucide-react';
+import { Plus, TrendingUp, TrendingDown, Wallet, ShoppingBag, Home, Utensils, GraduationCap, Heart, Trash2, Briefcase, ChevronDown, ChevronUp } from 'lucide-react';
 import { Card } from '../ui/card';
 import { Button } from '../ui/button';
 import { Progress } from '../ui/progress';
@@ -17,7 +17,7 @@ interface FinanceTransaction {
   amount: number;
   description: string;
   date: string;
-  type: 'expense' | 'income';
+  type: 'expense' | 'income' | 'savings';
   paymentMethod?: string;
   recurring?: boolean;
   frequency?: string;
@@ -40,14 +40,18 @@ export function Finances() {
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
   const [isSavingsGoalDialogOpen, setIsSavingsGoalDialogOpen] = useState(false);
   const [isMonthlyBudgetDialogOpen, setIsMonthlyBudgetDialogOpen] = useState(false);
+  const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
+  const [transactionToDelete, setTransactionToDelete] = useState<FinanceTransaction | null>(null);
+  const [isGoalsExpanded, setIsGoalsExpanded] = useState(false);
   const [newExpense, setNewExpense] = useState({
     description: '',
     category: 'Food',
     amount: '',
-    type: 'expense' as 'expense' | 'income',
+    type: 'expense' as 'expense' | 'income' | 'savings',
     paymentMethod: '',
     recurring: false,
     frequency: '',
+    goalId: '',
   });
   const [newSavingsGoal, setNewSavingsGoal] = useState({
     title: '',
@@ -113,6 +117,7 @@ export function Finances() {
 
   const allCategories = [...expenseCategories, ...incomeCategories];
   const currentCategories = newExpense.type === 'income' ? incomeCategories : expenseCategories;
+  const activeGoalsForSavings = savingsGoals.filter((goal: any) => goal.status === 'active');
 
   // Calculate dynamic values based on actual transactions
   const totalExpenses = monthlySummary.totalExpenses;
@@ -164,15 +169,43 @@ export function Finances() {
       return;
     }
 
+    if (newExpense.type === 'savings' && !newExpense.goalId) {
+      toast.error('Please select a savings goal');
+      return;
+    }
+
     try {
+      const amount = parseFloat(newExpense.amount);
+      
+      // If it's a savings transaction, get the goal name for category
+      let category = newExpense.category;
+      let goalId = newExpense.goalId || undefined;
+      
+      if (newExpense.type === 'savings' && newExpense.goalId) {
+        const selectedGoal = savingsGoals.find(g => g.id === newExpense.goalId);
+        if (selectedGoal) {
+          category = selectedGoal.title; // Use goal title as category
+          
+          // Update the savings goal's current amount
+          const newCurrentAmount = (selectedGoal.currentAmount || 0) + amount;
+          await savingsGoalAPI.update(selectedGoal.id, {
+            currentAmount: newCurrentAmount,
+            // Auto-complete if target reached
+            status: newCurrentAmount >= selectedGoal.targetAmount ? 'completed' : selectedGoal.status
+          });
+        }
+      }
+
+      // Create the finance transaction
       await financeAPI.create({
-        category: newExpense.category,
-        amount: parseFloat(newExpense.amount),
+        category: category,
+        amount: amount,
         description: newExpense.description,
         type: newExpense.type,
         paymentMethod: newExpense.paymentMethod || undefined,
         recurring: newExpense.recurring,
         frequency: newExpense.frequency || undefined,
+        goalId: goalId,
       });
 
       setNewExpense({ 
@@ -183,9 +216,12 @@ export function Finances() {
         paymentMethod: '',
         recurring: false,
         frequency: '',
+        goalId: '',
       });
       setIsAddDialogOpen(false);
-      toast.success(`${newExpense.type === 'income' ? 'Income' : 'Expense'} added successfully!`);
+      
+      const typeLabel = newExpense.type === 'income' ? 'Income' : newExpense.type === 'savings' ? 'Savings' : 'Expense';
+      toast.success(`${typeLabel} added successfully!`);
       
       // Reload data to reflect changes
       await loadFinanceData();
@@ -195,10 +231,33 @@ export function Finances() {
     }
   };
 
-  const handleDeleteExpense = async (id: string) => {
+  const handleDeleteExpense = async (transaction: FinanceTransaction) => {
+    setTransactionToDelete(transaction);
+    setIsDeleteDialogOpen(true);
+  };
+
+  const confirmDeleteExpense = async () => {
+    if (!transactionToDelete) return;
+
     try {
-      await financeAPI.delete(id);
+      // If it's a savings transaction, subtract from the goal's current amount
+      if (transactionToDelete.type === 'savings' && transactionToDelete.goalId) {
+        const goal = savingsGoals.find(g => g.id === transactionToDelete.goalId);
+        if (goal) {
+          const newCurrentAmount = Math.max(0, (goal.currentAmount || 0) - transactionToDelete.amount);
+          await savingsGoalAPI.update(goal.id, {
+            currentAmount: newCurrentAmount,
+            // Revert to active if it was completed but now below target
+            status: goal.status === 'completed' && newCurrentAmount < goal.targetAmount ? 'active' : goal.status
+          });
+        }
+      }
+
+      await financeAPI.delete(transactionToDelete.id);
       toast.success('Transaction deleted!');
+      
+      setIsDeleteDialogOpen(false);
+      setTransactionToDelete(null);
       
       // Reload data to reflect changes
       await loadFinanceData();
@@ -313,10 +372,10 @@ export function Finances() {
                 <Label htmlFor="type">Type</Label>
                 <Select 
                   value={newExpense.type} 
-                  onValueChange={(value: 'expense' | 'income') => {
-                    // Reset category to first option when type changes
+                  onValueChange={(value: 'expense' | 'income' | 'savings') => {
+                    // Reset category/goalId when type changes
                     const newCategory = value === 'income' ? 'Salary' : 'Food';
-                    setNewExpense({ ...newExpense, type: value, category: newCategory });
+                    setNewExpense({ ...newExpense, type: value, category: newCategory, goalId: '' });
                   }}
                 >
                   <SelectTrigger>
@@ -325,6 +384,7 @@ export function Finances() {
                   <SelectContent>
                     <SelectItem value="expense">Expense</SelectItem>
                     <SelectItem value="income">Income</SelectItem>
+                    <SelectItem value="savings">Savings</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
@@ -337,19 +397,41 @@ export function Finances() {
                   onChange={(e) => setNewExpense({ ...newExpense, description: e.target.value })}
                 />
               </div>
-              <div>
-                <Label htmlFor="category">Category</Label>
-                <Select value={newExpense.category} onValueChange={(value: string) => setNewExpense({ ...newExpense, category: value })}>
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {currentCategories.map(cat => (
-                      <SelectItem key={cat.name} value={cat.name}>{cat.name}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
+              {newExpense.type === 'savings' ? (
+                <div>
+                  <Label htmlFor="goalId">Savings Goal</Label>
+                  <Select value={newExpense.goalId} onValueChange={(value: string) => setNewExpense({ ...newExpense, goalId: value })}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select a savings goal" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {activeGoalsForSavings.length === 0 ? (
+                        <SelectItem value="none" disabled>No active goals - create one first</SelectItem>
+                      ) : (
+                        activeGoalsForSavings.map((goal: any) => (
+                          <SelectItem key={goal.id} value={goal.id}>
+                            {goal.title} ({goal.currentAmount || 0}/{goal.targetAmount} BDT)
+                          </SelectItem>
+                        ))
+                      )}
+                    </SelectContent>
+                  </Select>
+                </div>
+              ) : (
+                <div>
+                  <Label htmlFor="category">Category</Label>
+                  <Select value={newExpense.category} onValueChange={(value: string) => setNewExpense({ ...newExpense, category: value })}>
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {currentCategories.map(cat => (
+                        <SelectItem key={cat.name} value={cat.name}>{cat.name}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              )}
               <div>
                 <Label htmlFor="amount">Amount (BDT)</Label>
                 <Input
@@ -555,9 +637,77 @@ export function Finances() {
         </DialogContent>
       </Dialog>
 
+      {/* Delete Confirmation Dialog */}
+      <Dialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Delete Transaction</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            <p className="text-muted-foreground">
+              Are you sure you want to delete this transaction?
+            </p>
+            {transactionToDelete && (
+              <div className="bg-muted p-4 rounded-lg space-y-2">
+                <div className="flex justify-between">
+                  <span className="text-sm text-muted-foreground">Description:</span>
+                  <span className="text-sm font-medium">{transactionToDelete.description}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-sm text-muted-foreground">Amount:</span>
+                  <span className="text-sm font-medium">{transactionToDelete.amount} BDT</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-sm text-muted-foreground">Type:</span>
+                  <span className="text-sm font-medium capitalize">{transactionToDelete.type}</span>
+                </div>
+                {transactionToDelete.type === 'savings' && (
+                  <div className="flex justify-between">
+                    <span className="text-sm text-muted-foreground">Savings Goal:</span>
+                    <span className="text-sm font-medium">{transactionToDelete.category}</span>
+                  </div>
+                )}
+              </div>
+            )}
+            {transactionToDelete?.type === 'savings' && (
+              <div className="bg-yellow-50 dark:bg-yellow-950 border border-yellow-200 dark:border-yellow-800 p-3 rounded-lg">
+                <p className="text-sm text-yellow-800 dark:text-yellow-200">
+                  ⚠️ <strong>Warning:</strong> Deleting this savings transaction will subtract <strong>{transactionToDelete.amount} BDT</strong> from the "{transactionToDelete.category}" savings goal.
+                </p>
+              </div>
+            )}
+            {transactionToDelete?.type === 'income' && (
+              <div className="bg-blue-50 dark:bg-blue-950 border border-blue-200 dark:border-blue-800 p-3 rounded-lg">
+                <p className="text-sm text-blue-800 dark:text-blue-200">
+                  ℹ️ Deleting this income will reduce your total income by <strong>{transactionToDelete.amount} BDT</strong>.
+                </p>
+              </div>
+            )}
+            {transactionToDelete?.type === 'expense' && (
+              <div className="bg-blue-50 dark:bg-blue-950 border border-blue-200 dark:border-blue-800 p-3 rounded-lg">
+                <p className="text-sm text-blue-800 dark:text-blue-200">
+                  ℹ️ Deleting this expense will reduce your total expenses by <strong>{transactionToDelete.amount} BDT</strong>.
+                </p>
+              </div>
+            )}
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => {
+              setIsDeleteDialogOpen(false);
+              setTransactionToDelete(null);
+            }}>
+              Cancel
+            </Button>
+            <Button variant="destructive" onClick={confirmDeleteExpense}>
+              Delete Transaction
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
       {/* Top Stats */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
-        <Card className="p-4 border-border bg-card">
+        <Card className="p-4 border-border bg-card h-fit">
           <div className="flex items-center justify-between mb-3">
             <div>
               <p className="text-muted-foreground text-sm mb-0.5">Total Income</p>
@@ -570,7 +720,7 @@ export function Finances() {
           </div>
         </Card>
 
-        <Card className="p-4 border-border bg-card">
+        <Card className="p-4 border-border bg-card h-fit">
           <div className="flex items-center justify-between mb-3">
             <div>
               <p className="text-muted-foreground text-sm mb-0.5">Total Expenses</p>
@@ -589,7 +739,7 @@ export function Finances() {
           </div>
         </Card>
 
-        <Card className="p-4 border-border bg-card">
+        <Card className="p-4 border-border bg-card h-fit">
           <div className="flex items-center justify-between">
             <div>
               <p className="text-muted-foreground text-sm mb-0.5">Available Balance</p>
@@ -618,32 +768,98 @@ export function Finances() {
           </div>
         </Card>
 
-        <Card className="p-4 border-border bg-gradient-to-r from-violet-50 to-purple-50 dark:from-violet-950 dark:to-purple-950 border-primary/20">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-primary text-sm mb-0.5">Savings Goal</p>
-              <p className="text-foreground text-3xl">{currentSavings} BDT</p>
-              <p className="text-muted-foreground text-sm mt-0.5">of BDT {savingsGoal} goal</p>
-            </div>
-            <div className="relative w-10 h-10">
-              <svg className="w-10 h-10 transform -rotate-90">
-                <circle cx="20" cy="20" r="16" stroke="currentColor" strokeWidth="3" fill="none" className="text-primary/20" />
-                <circle
-                  cx="20"
-                  cy="20"
-                  r="16"
-                  stroke="currentColor"
-                  strokeWidth="3"
-                  fill="none"
-                  strokeDasharray={`${2 * Math.PI * 16}`}
-                  strokeDashoffset={`${2 * Math.PI * 16 * (1 - savingsProgress / 100)}`}
-                  className="text-primary"
-                />
-              </svg>
+        <Card className="p-4 border-border bg-gradient-to-r from-violet-50 to-purple-50 dark:from-violet-950 dark:to-purple-950 border-primary/20 h-fit">
+          <div 
+            className="flex items-center justify-between cursor-pointer select-none"
+            onClick={() => setIsGoalsExpanded(!isGoalsExpanded)}
+          >
+            <div className="flex-1">
+              <div className="flex items-center justify-between mb-1">
+                <p className="text-primary text-sm font-medium">Savings Goals</p>
+                <div className="flex items-center gap-2">
+                  <span className="text-xs text-muted-foreground">{activeSavingsGoals.length} goal{activeSavingsGoals.length !== 1 ? 's' : ''}</span>
+                  {isGoalsExpanded ? <ChevronUp className="w-4 h-4 text-primary" /> : <ChevronDown className="w-4 h-4 text-primary" />}
+                </div>
+              </div>
+              <div className="flex items-center justify-between">
+                <p className="text-foreground text-2xl font-bold">{currentSavings.toFixed(0)} BDT</p>
+                <div className="relative w-8 h-8">
+                  <svg className="w-8 h-8 transform -rotate-90">
+                    <circle cx="16" cy="16" r="12" stroke="currentColor" strokeWidth="2.5" fill="none" className="text-primary/20" />
+                    <circle
+                      cx="16"
+                      cy="16"
+                      r="12"
+                      stroke="currentColor"
+                      strokeWidth="2.5"
+                      fill="none"
+                      strokeDasharray={`${2 * Math.PI * 12}`}
+                      strokeDashoffset={`${2 * Math.PI * 12 * (1 - savingsProgress / 100)}`}
+                      className="text-primary"
+                    />
+                  </svg>
+                  <span className="absolute inset-0 flex items-center justify-center text-[9px] font-bold text-primary">
+                    {Math.round(savingsProgress)}%
+                  </span>
+                </div>
+              </div>
+              <p className="text-muted-foreground text-xs mt-0.5">of {savingsGoal.toFixed(0)} BDT total</p>
             </div>
           </div>
-          <Progress value={savingsProgress} className="h-2 mt-3" />
-          <p className="text-primary text-sm mt-1">{Math.round(savingsProgress)}% complete</p>
+          
+          {isGoalsExpanded && activeSavingsGoals.length > 0 && (
+            <div className="space-y-2 mt-4 pt-3 border-t border-primary/20">
+              {activeSavingsGoals.map((goal: any) => {
+                const progress = goal.targetAmount > 0 ? (goal.currentAmount || 0) / goal.targetAmount * 100 : 0;
+                const isCompleted = goal.status === 'completed';
+                return (
+                  <div key={goal.id} className="bg-white/60 dark:bg-black/30 p-2.5 rounded-lg">
+                    <div className="flex items-center justify-between mb-1.5">
+                      <div className="flex items-center gap-2">
+                        <span className="text-sm font-medium text-foreground">{goal.title}</span>
+                        {isCompleted && (
+                          <span className="px-1.5 py-0.5 bg-green-100 dark:bg-green-900 text-green-700 dark:text-green-300 text-[10px] font-medium rounded">
+                            Completed
+                          </span>
+                        )}
+                      </div>
+                      <span className="text-xs text-muted-foreground font-medium">
+                        {(goal.currentAmount || 0).toFixed(0)}/{goal.targetAmount.toFixed(0)} BDT
+                      </span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <Progress value={Math.min(progress, 100)} className="h-1.5 flex-1" />
+                      <span className="text-[10px] text-muted-foreground min-w-[35px] text-right">
+                        {Math.round(progress)}%
+                      </span>
+                    </div>
+                    {goal.dueDate && (
+                      <p className="text-[10px] text-muted-foreground mt-1">
+                        Due: {new Date(goal.dueDate).toLocaleDateString()}
+                      </p>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          )}
+          
+          {activeSavingsGoals.length === 0 && (
+            <div className="text-center py-2 mt-2">
+              <p className="text-xs text-muted-foreground">No active savings goals</p>
+              <Button 
+                variant="link" 
+                size="sm" 
+                className="text-xs h-auto p-0 mt-1"
+                onClick={(e: React.MouseEvent) => {
+                  e.stopPropagation();
+                  setIsSavingsGoalDialogOpen(true);
+                }}
+              >
+                Create your first goal
+              </Button>
+            </div>
+          )}
         </Card>
       </div>
 
@@ -710,18 +926,25 @@ export function Finances() {
                       </div>
                     </div>
                     <div className="flex items-center gap-2">
-                      <p className={`${
-                        transaction.type === 'income' 
-                          ? 'text-green-600 dark:text-green-400' 
-                          : 'text-foreground'
-                      }`}>
-                        {transaction.type === 'income' ? '+' : '-'}${Math.abs(transaction.amount)}
-                      </p>
+                      <div className="flex flex-col items-end">
+                        <p className={`${
+                          transaction.type === 'income' 
+                            ? 'text-green-600 dark:text-green-400' 
+                            : transaction.type === 'savings'
+                            ? 'text-blue-600 dark:text-blue-400'
+                            : 'text-foreground'
+                        }`}>
+                          {transaction.type === 'income' ? '+' : transaction.type === 'savings' ? '→' : '-'}{Math.abs(transaction.amount)} BDT
+                        </p>
+                        {transaction.type === 'savings' && (
+                          <p className="text-xs text-muted-foreground">{transaction.category}</p>
+                        )}
+                      </div>
                       <Button
                         variant="ghost"
                         size="icon"
                         className="opacity-0 group-hover:opacity-100 transition-opacity h-8 w-8"
-                        onClick={() => handleDeleteExpense(transaction.id)}
+                        onClick={() => handleDeleteExpense(transaction)}
                       >
                         <Trash2 className="w-3 h-3 text-destructive" />
                       </Button>

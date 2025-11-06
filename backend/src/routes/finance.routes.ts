@@ -101,8 +101,9 @@ router.get('/summary/monthly', async (req: AuthRequest, res) => {
       .filter((f: any) => f.type === 'income')
       .reduce((sum: number, f: any) => sum + f.amount, 0);
 
+    // Expenses include both 'expense' and 'savings' types
     const totalExpenses = finances
-      .filter((f: any) => f.type === 'expense')
+      .filter((f: any) => f.type === 'expense' || f.type === 'savings')
       .reduce((sum: number, f: any) => sum + f.amount, 0);
 
     const balance = totalIncome - totalExpenses;

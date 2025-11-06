@@ -204,7 +204,7 @@ export const financeAPI = {
     amount: number;
     description: string;
     date?: string;
-    type?: 'income' | 'expense';
+    type?: 'income' | 'expense' | 'savings';
     paymentMethod?: string;
     recurring?: boolean;
     frequency?: string;

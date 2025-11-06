@@ -12,23 +12,15 @@ router.get('/', async (req: AuthRequest, res) => {
   try {
     const goals = await prisma.savingsGoal.findMany({
       where: { userId: req.userId },
-      include: {
-        finances: {
-          where: { type: 'income' },
-          select: { amount: true }
-        }
-      },
       orderBy: { createdAt: 'desc' }
     });
 
-    // Calculate current amount from linked finances
+    // Calculate progress from currentAmount stored in database
     const goalsWithProgress = goals.map(goal => {
-      const totalContributions = goal.finances.reduce((sum, finance) => sum + finance.amount, 0);
-      const progress = goal.targetAmount > 0 ? Math.min((totalContributions / goal.targetAmount) * 100, 100) : 0;
+      const progress = goal.targetAmount > 0 ? Math.min((goal.currentAmount / goal.targetAmount) * 100, 100) : 0;
 
       return {
         ...goal,
-        currentAmount: totalContributions,
         progress
       };
     });
