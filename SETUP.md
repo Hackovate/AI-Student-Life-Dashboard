@@ -50,13 +50,13 @@ CREATE DATABASE student_dashboard;
 ### 5. Generate Prisma Client and Run Migrations
 ```powershell
 # Generate Prisma Client
-npm run prisma:generate
+npx prisma generate
 
 # Run database migrations
-npm run prisma:migrate
+npx prisma migrate deploy
 
 # Optional: Open Prisma Studio to view/manage data
-npm run prisma:studio
+npx prisma studio
 ```
 
 ### 6. Start the Backend Server

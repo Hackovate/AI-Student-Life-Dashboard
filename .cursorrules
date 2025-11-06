@@ -1,0 +1,24 @@
+# Project Context for Cursor AI
+
+This project follows the detailed instructions in `.github/instructions/copilot-instructions.md`.
+
+Please refer to that file for complete project context, architecture, and coding guidelines.
+
+## Quick Reference
+
+**Project**: Momentum — AI-Based Student Productivity Assistant
+
+**Tech Stack**:
+- Frontend: React + Vite, TailwindCSS, shadcn/ui
+- Backend: Node.js (Express) + Prisma ORM + PostgreSQL
+- AI Service: FastAPI (Python) + Gemini API + ChromaDB + LangChain
+
+**Key Rules**:
+- Backend orchestrates Frontend ↔ AI ↔ Postgres (never direct AI calls from backend)
+- AI Service handles all AI reasoning and ChromaDB operations
+- Frontend only calls Express backend (never AI service directly)
+- Use Prisma for all database operations
+- Always return structured JSON from AI endpoints
+
+For complete details, see: `.github/instructions/copilot-instructions.md`
+

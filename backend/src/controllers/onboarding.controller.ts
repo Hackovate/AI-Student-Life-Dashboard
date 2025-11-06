@@ -5,7 +5,7 @@ import axios from 'axios';
 const prisma = new PrismaClient();
 const AI_SERVICE_URL = process.env.AI_SERVICE_URL || 'http://localhost:8000';
 
-// Start onboarding conversation
+// Start onboarding conversation (for AI - kept for future use)
 export const startOnboarding = async (req: Request, res: Response) => {
   try {
     const userId = (req as any).userId;
@@ -16,15 +16,14 @@ export const startOnboarding = async (req: Request, res: Response) => {
       select: { firstName: true }
     });
 
-    // Call AI service to start onboarding
-    const response = await axios.post(`${AI_SERVICE_URL}/onboarding/start`, {
-      user_id: userId,
-      user_name: user?.firstName || 'there'
-    });
-
+    // For now, return a simple response (AI will be implemented later)
     res.json({
       success: true,
-      data: response.data
+      data: {
+        question: `Welcome ${user?.firstName || 'there'}! Let's get started with your onboarding.`,
+        completed: false,
+        next_step: 'education_level'
+      }
     });
   } catch (error: any) {
     console.error('Start onboarding error:', error);
@@ -35,7 +34,29 @@ export const startOnboarding = async (req: Request, res: Response) => {
   }
 };
 
-// Submit answer to onboarding question
+// Submit complete onboarding data (form-based, no AI)
+export const submitOnboardingData = async (req: Request, res: Response) => {
+  try {
+    const userId = (req as any).userId;
+    const data = req.body;
+
+    // Save onboarding data directly
+    await saveOnboardingData(userId, data);
+
+    res.json({
+      success: true,
+      message: 'Onboarding completed successfully'
+    });
+  } catch (error: any) {
+    console.error('Submit onboarding data error:', error);
+    res.status(500).json({
+      success: false,
+      error: error.message || 'Failed to save onboarding data'
+    });
+  }
+};
+
+// Submit answer to onboarding question (for AI - kept for future use)
 export const submitAnswer = async (req: Request, res: Response) => {
   try {
     const userId = (req as any).userId;
@@ -48,22 +69,14 @@ export const submitAnswer = async (req: Request, res: Response) => {
       });
     }
 
-    // Call AI service to process answer
-    const response = await axios.post(`${AI_SERVICE_URL}/onboarding/answer`, {
-      user_id: userId,
-      answer
-    });
-
-    const aiResponse = response.data;
-
-    // If onboarding is complete, save data to database
-    if (aiResponse.completed && aiResponse.structured_data) {
-      await saveOnboardingData(userId, aiResponse.structured_data);
-    }
-
+    // For now, return a simple response (AI will be implemented later)
     res.json({
       success: true,
-      data: aiResponse
+      data: {
+        question: 'Thank you for your answer. Please continue with the form.',
+        completed: false,
+        next_step: 'continue'
+      }
     });
   } catch (error: any) {
     console.error('Submit answer error:', error);
@@ -111,61 +124,114 @@ export const getOnboardingStatus = async (req: Request, res: Response) => {
 // Helper function to save onboarding data
 async function saveOnboardingData(userId: string, data: any) {
   try {
-    // Update user with education info
+    // Update user with education info (handle both snake_case and camelCase)
+    const updateData: any = {
+      educationLevel: data.education_level || data.educationLevel,
+      institution: data.institution || null,
+      board: data.board || null,
+      expectedGraduation: data.expectedGraduation ? new Date(data.expectedGraduation) : null
+    };
+
+    // School-specific
+    if (data.class) updateData.class = data.class.toString();
+    if (data.group) updateData.group = data.group;
+    
+    // College/University-specific
+    if (data.year) updateData.year = parseInt(data.year.toString());
+    if (data.major) updateData.major = data.major;
+    
     await prisma.user.update({
       where: { id: userId },
-      data: {
-        educationLevel: data.education_level,
-        institution: data.institution,
-        class: data.class,
-        group: data.group,
-        year: data.year,
-        major: data.major,
-        board: data.board
-      }
+      data: updateData
     });
 
-    // Create courses
+    // Store additional education fields in AIMemory metadata
+    const additionalFields: any = {};
+    if (data.medium) additionalFields.medium = data.medium;
+    if (data.department) additionalFields.department = data.department;
+    if (data.semester) additionalFields.semester = data.semester;
+    if (data.researchArea) additionalFields.researchArea = data.researchArea;
+    if (data.program) additionalFields.program = data.program;
+
+    if (Object.keys(additionalFields).length > 0) {
+      // Store in AIMemory as onboarding metadata
+      await prisma.aIMemory.create({
+        data: {
+          userId,
+          type: 'onboarding',
+          chromaId: `onboarding-${userId}-${Date.now()}`,
+          metadata: {
+            source: 'onboarding',
+            educationDetails: additionalFields
+          }
+        }
+      });
+    }
+
+    // Create courses (for university/graduate)
     if (data.courses && Array.isArray(data.courses)) {
       for (const course of data.courses) {
         await prisma.course.create({
           data: {
             userId,
-            name: course.name,
-            code: course.code || `COURSE-${Date.now()}`,
-            credits: course.credits || 3,
-            instructor: course.instructor || 'TBD',
-            schedule: course.schedule || 'TBD'
+            courseName: course.name || course.courseName,
+            courseCode: course.code || course.courseCode || `COURSE-${Date.now()}`,
+            credits: course.credits ? parseInt(course.credits.toString()) : 3
+          }
+        });
+      }
+    }
+
+    // Create subjects as courses (for school/college)
+    // Store subjects as courses with a special tag or in description
+    if (data.subjects && Array.isArray(data.subjects)) {
+      for (const subject of data.subjects) {
+        await prisma.course.create({
+          data: {
+            userId,
+            courseName: subject,
+            courseCode: `SUBJECT-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+            credits: null,
+            description: 'Subject from onboarding'
           }
         });
       }
     }
 
     // Create skills
-    if (data.skill_goals && Array.isArray(data.skill_goals)) {
-      for (const skill of data.skill_goals) {
+    const skills = data.skill_goals || data.skills || [];
+    if (Array.isArray(skills) && skills.length > 0) {
+      for (const skill of skills) {
         await prisma.skill.create({
           data: {
             userId,
             name: skill.name,
             category: skill.category || 'General',
-            currentLevel: skill.current_level || 'Beginner',
-            targetLevel: skill.target_level || 'Intermediate',
-            priority: skill.priority || 'Medium'
+            level: (skill.current_level || skill.level || 'beginner').toLowerCase()
           }
         });
       }
     }
 
-    // Create finance record
-    if (data.financial_situation) {
-      await prisma.finance.create({
-        data: {
-          userId,
-          monthlyBudget: data.financial_situation.monthly_budget || 0,
-          monthlyIncome: data.financial_situation.monthly_income || 0
-        }
-      });
+    // Create monthly budget record (Finance model is for transactions, not budgets)
+    const financialData = data.financial_situation || data.financial || {};
+    if (financialData.monthly_budget || financialData.monthlyBudget) {
+      const now = new Date();
+      const monthlyBudget = financialData.monthly_budget || financialData.monthlyBudget || 0;
+      
+      if (monthlyBudget > 0) {
+        await prisma.monthlyBudget.create({
+          data: {
+            userId,
+            title: 'General Monthly Budget',
+            targetAmount: parseFloat(monthlyBudget.toString()),
+            currentAmount: 0,
+            category: 'general',
+            month: now.getMonth() + 1,
+            year: now.getFullYear()
+          }
+        });
+      }
     }
 
     // Save conversation to AIMemory for future reference
@@ -173,8 +239,12 @@ async function saveOnboardingData(userId: string, data: any) {
       data: {
         userId,
         chromaId: `onboarding-${userId}-${Date.now()}`,
-        contextType: 'onboarding',
-        metadata: JSON.stringify(data)
+        type: 'chat',
+        metadata: {
+          source: 'onboarding',
+          topic: 'user_setup',
+          data: data
+        }
       }
     });
 

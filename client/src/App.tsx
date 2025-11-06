@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { ThemeProvider } from './components/theme-provider';
 import { AppProvider } from './lib/AppContext';
@@ -15,7 +15,56 @@ import { Finances } from './components/pages/Finances';
 import { Lifestyle } from './components/pages/Lifestyle';
 import { Journal } from './components/pages/Journal';
 import { Analytics } from './components/pages/Analytics';
+import { LandingPage } from './components/pages/LandingPage';
+import { OnboardingPage } from './components/pages/OnboardingPage';
 import AuthPage from './components/pages/AuthPage';
+
+// Onboarding Check wrapper
+function OnboardingCheck({ children }: { children: React.ReactNode }) {
+  const { isAuthenticated, loading } = useAuth();
+  const [checkingOnboarding, setCheckingOnboarding] = useState(true);
+  const [needsOnboarding, setNeedsOnboarding] = useState(false);
+
+  useEffect(() => {
+    const checkOnboarding = async () => {
+      if (!isAuthenticated || loading) {
+        setCheckingOnboarding(false);
+        return;
+      }
+
+      try {
+        const { onboardingAPI } = await import('./lib/api');
+        const status = await onboardingAPI.getStatus();
+        if (!status.data.completed) {
+          setNeedsOnboarding(true);
+        }
+      } catch (error) {
+        console.error('Error checking onboarding:', error);
+      } finally {
+        setCheckingOnboarding(false);
+      }
+    };
+
+    checkOnboarding();
+  }, [isAuthenticated, loading]);
+
+  if (loading || checkingOnboarding) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-gray-900 mx-auto"></div>
+          <p className="mt-4 text-gray-600">Loading...</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (needsOnboarding) {
+    return <Navigate to="/onboarding" replace />;
+  }
+
+  return <>{children}</>;
+}
 
 // Protected Route wrapper
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
@@ -92,18 +141,30 @@ function AppContent() {
   return (
     <BrowserRouter>
       <Routes>
-        {/* Landing redirects to auth */}
-        <Route path="/" element={<Navigate to="/auth" replace />} />
+        {/* Landing page */}
+        <Route path="/" element={<LandingPage />} />
         
         {/* Auth page */}
         <Route path="/auth" element={<AuthPage />} />
         
-        {/* Main dashboard (protected) */}
+        {/* Onboarding page (protected) */}
+        <Route
+          path="/onboarding"
+          element={
+            <ProtectedRoute>
+              <OnboardingPage />
+            </ProtectedRoute>
+          }
+        />
+        
+        {/* Main dashboard (protected, checks onboarding) */}
         <Route
           path="/dashboard"
           element={
             <ProtectedRoute>
-              <MainLayout />
+              <OnboardingCheck>
+                <MainLayout />
+              </OnboardingCheck>
             </ProtectedRoute>
           }
         />

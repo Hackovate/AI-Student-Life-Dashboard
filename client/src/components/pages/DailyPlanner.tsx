@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Plus, Sparkles, CheckCircle2, Circle, Clock, Trash2 } from 'lucide-react';
+import { Plus, Sparkles, CheckCircle2, Circle, Clock, Trash2, Pencil } from 'lucide-react';
 import { Card } from '../ui/card';
 import { Button } from '../ui/button';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from '../ui/dialog';
@@ -14,6 +14,8 @@ export function DailyPlanner() {
   const [tasks, setTasks] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
+  const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
+  const [editingTask, setEditingTask] = useState<any>(null);
   const [newTask, setNewTask] = useState({
     title: '',
     description: '',
@@ -99,6 +101,44 @@ export function DailyPlanner() {
     }
   };
 
+  const handleEditTask = (task: any) => {
+    setEditingTask(task);
+    setNewTask({
+      title: task.title || '',
+      description: task.description || '',
+      dueDate: task.dueDate ? new Date(task.dueDate).toISOString().split('T')[0] : '',
+      priority: task.priority || 'medium',
+    });
+    setIsEditDialogOpen(true);
+  };
+
+  const handleUpdateTask = async () => {
+    if (!newTask.title) {
+      toast.error('Please enter a task title');
+      return;
+    }
+
+    if (!editingTask) return;
+
+    try {
+      await tasksAPI.update(editingTask.id, {
+        title: newTask.title,
+        description: newTask.description || null,
+        dueDate: newTask.dueDate || null,
+        priority: newTask.priority,
+      });
+
+      setNewTask({ title: '', description: '', dueDate: '', priority: 'medium' });
+      setEditingTask(null);
+      setIsEditDialogOpen(false);
+      toast.success('Task updated successfully!');
+      await loadTasks();
+    } catch (error) {
+      console.error('Error updating task:', error);
+      toast.error('Failed to update task');
+    }
+  };
+
   const groupedTasks = {
     pending: tasks.filter(t => t.status === 'pending'),
     inProgress: tasks.filter(t => t.status === 'in-progress'),
@@ -137,14 +177,28 @@ export function DailyPlanner() {
                 </div>
               )}
             </div>
-            <Button
-              variant="ghost"
-              size="icon"
-              className="opacity-0 group-hover:opacity-100 transition-opacity"
-              onClick={() => handleDeleteTask(task.id)}
-            >
-              <Trash2 className="w-4 h-4 text-destructive" />
-            </Button>
+            <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+              <Button
+                variant="ghost"
+                size="icon"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  handleEditTask(task);
+                }}
+              >
+                <Pencil className="w-4 h-4 text-primary" />
+              </Button>
+              <Button
+                variant="ghost"
+                size="icon"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  handleDeleteTask(task.id);
+                }}
+              >
+                <Trash2 className="w-4 h-4 text-destructive" />
+              </Button>
+            </div>
           </div>
         ))
       )}
@@ -222,6 +276,72 @@ export function DailyPlanner() {
               <DialogFooter>
                 <Button variant="outline" onClick={() => setIsAddDialogOpen(false)}>Cancel</Button>
                 <Button onClick={handleAddTask}>Add Task</Button>
+              </DialogFooter>
+            </DialogContent>
+          </Dialog>
+
+          {/* Edit Task Dialog */}
+          <Dialog open={isEditDialogOpen} onOpenChange={(open) => {
+            setIsEditDialogOpen(open);
+            if (!open) {
+              setEditingTask(null);
+              setNewTask({ title: '', description: '', dueDate: '', priority: 'medium' });
+            }
+          }}>
+            <DialogContent>
+              <DialogHeader>
+                <DialogTitle>Edit Task</DialogTitle>
+              </DialogHeader>
+              <div className="space-y-4">
+                <div>
+                  <Label htmlFor="edit-title">Task Title *</Label>
+                  <Input
+                    id="edit-title"
+                    placeholder="Enter task title"
+                    value={newTask.title}
+                    onChange={(e) => setNewTask({ ...newTask, title: e.target.value })}
+                  />
+                </div>
+                <div>
+                  <Label htmlFor="edit-description">Description</Label>
+                  <Textarea
+                    id="edit-description"
+                    placeholder="Enter task description"
+                    value={newTask.description}
+                    onChange={(e) => setNewTask({ ...newTask, description: e.target.value })}
+                    rows={3}
+                  />
+                </div>
+                <div>
+                  <Label htmlFor="edit-dueDate">Due Date</Label>
+                  <Input
+                    id="edit-dueDate"
+                    type="date"
+                    value={newTask.dueDate}
+                    onChange={(e) => setNewTask({ ...newTask, dueDate: e.target.value })}
+                  />
+                </div>
+                <div>
+                  <Label htmlFor="edit-priority">Priority</Label>
+                  <Select value={newTask.priority} onValueChange={(value: any) => setNewTask({ ...newTask, priority: value })}>
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="low">Low</SelectItem>
+                      <SelectItem value="medium">Medium</SelectItem>
+                      <SelectItem value="high">High</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+              <DialogFooter>
+                <Button variant="outline" onClick={() => {
+                  setIsEditDialogOpen(false);
+                  setEditingTask(null);
+                  setNewTask({ title: '', description: '', dueDate: '', priority: 'medium' });
+                }}>Cancel</Button>
+                <Button onClick={handleUpdateTask}>Update Task</Button>
               </DialogFooter>
             </DialogContent>
           </Dialog>

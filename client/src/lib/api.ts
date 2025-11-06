@@ -576,6 +576,83 @@ export const onboardingAPI = {
       };
     }>('/onboarding/status');
   },
+
+  submit: async (data: any) => {
+    return apiRequest<{
+      success: boolean;
+      message: string;
+    }>('/onboarding/submit', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  },
+};
+
+// Analytics API
+export const analyticsAPI = {
+  getAll: async () => {
+    return apiRequest<{
+      monthlyStats: {
+        tasksCompleted: number;
+        studyHours: number;
+        savingsRate: number;
+        wellnessScore: number;
+        skillProgress: number;
+      };
+      subjectPerformance: Array<{
+        id: string;
+        name: string;
+        code: string;
+        progress: number;
+        grade: string;
+        score: number;
+        trend: 'up' | 'down' | 'neutral';
+        assignments: number;
+        nextClass: string;
+      }>;
+      skills: Array<{
+        id: string;
+        name: string;
+        category: string;
+        progress: number;
+        gradient: string;
+        milestones: Array<{ name: string; completed: boolean }>;
+        nextTask: string;
+        resources: number;
+        timeSpent: string;
+      }>;
+      expenses: Array<{
+        id: string;
+        category: string;
+        amount: number;
+        description: string;
+        date: string;
+        type: 'expense' | 'income';
+        paymentMethod?: string;
+        recurring?: boolean;
+        frequency?: string;
+      }>;
+      expenseCategories: Array<{
+        category: string;
+        amount: number;
+        percentage: number;
+      }>;
+      weeklyTaskCompletion: Array<{
+        week: string;
+        completed: number;
+        total: number;
+      }>;
+      dailyTaskCompletion: { [key: string]: { completed: number; total: number } };
+      achievements: Array<{
+        id: number;
+        title: string;
+        description: string;
+        icon: string;
+      }>;
+      totalIncome: number;
+      totalExpenses: number;
+    }>('/analytics');
+  },
 };
 
 export default {
@@ -590,4 +667,5 @@ export default {
   lifestyle: lifestyleAPI,
   courses: coursesAPI,
   onboarding: onboardingAPI,
+  analytics: analyticsAPI,
 };

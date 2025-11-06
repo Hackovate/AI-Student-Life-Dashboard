@@ -1,105 +1,55 @@
-import { TrendingUp, Calendar, Target, Sparkles } from 'lucide-react';
+import { useState, useEffect } from 'react';
+import { TrendingUp, Calendar, Sparkles } from 'lucide-react';
 import { Card } from '../ui/card';
 import { Button } from '../ui/button';
 import { Badge } from '../ui/badge';
-import { useApp } from '../../lib/AppContext';
+import { analyticsAPI } from '../../lib/api';
 
 export function Analytics() {
-  const { subjects, expenses, habits, skills } = useApp();
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [analyticsData, setAnalyticsData] = useState<any>(null);
+
+  useEffect(() => {
+    const fetchAnalytics = async () => {
+      try {
+        setLoading(true);
+        const data = await analyticsAPI.getAll();
+        setAnalyticsData(data);
+        setError(null);
+      } catch (err: any) {
+        console.error('Error fetching analytics:', err);
+        setError(err.message || 'Failed to load analytics data');
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchAnalytics();
+  }, []);
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center h-96">
+        <p className="text-muted-foreground">Loading analytics...</p>
+      </div>
+    );
+  }
+
+  if (error || !analyticsData) {
+    return (
+      <div className="flex items-center justify-center h-96">
+        <p className="text-red-500">{error || 'No data available'}</p>
+      </div>
+    );
+  }
+
+  // Extract data from API response
+  const { monthlyStats, subjectPerformance, skills, expenses, expenseCategories, weeklyTaskCompletion, dailyTaskCompletion, achievements } = analyticsData;
 
   // Calculate dynamic monthly stats
   const currentMonth = new Date().getMonth();
   const currentYear = new Date().getFullYear();
-
-  // Safe fallbacks for data
-  const safeExpenses = expenses || [];
-  const safeSubjects = subjects || [];
-  const safeHabits = habits || [];
-  const safeSkills = skills || [];
-
-  // For now, use habits as task-like data until tasks are properly integrated
-  const tasksThisMonth = safeHabits;
-  const completedTasks = safeHabits.filter(habit => habit.completed);
-  const totalTaskTime = completedTasks.length * 2; // Estimate 2 hours per completed habit
-
-  const totalExpenses = safeExpenses
-    .filter(e => e.type === 'expense')
-    .reduce((sum, e) => sum + e.amount, 0);
-  const totalIncome = safeExpenses
-    .filter(e => e.type === 'income')
-    .reduce((sum, e) => sum + e.amount, 0);
-  const savingsRate = totalIncome > 0 ? Math.round(((totalIncome - totalExpenses) / totalIncome) * 100) : 0;
-
-  const completedHabits = safeHabits.filter(h => h.completed).length;
-  const wellnessScore = safeHabits.length > 0 ? Math.round((completedHabits / safeHabits.length) * 100) : 0;
-
-  const avgSkillProgress = safeSkills.length > 0 
-    ? Math.round(safeSkills.reduce((sum, skill) => sum + skill.progress, 0) / safeSkills.length) 
-    : 0;
-
-  const monthlyStats = {
-    tasksCompleted: completedTasks.length,
-    studyHours: Math.round(totalTaskTime),
-    savingsRate,
-    wellnessScore,
-    skillProgress: avgSkillProgress
-  };
-
-  // Calculate weekly task completion (using habits as proxy)
-  const getWeeklyTaskCompletion = () => {
-    const weeks = [];
-    
-    for (let i = 3; i >= 0; i--) {
-      const completed = Math.max(1, completedHabits - i);
-      const total = Math.max(1, safeHabits.length);
-      
-      weeks.push({
-        week: `Week ${4 - i}`,
-        completed,
-        total
-      });
-    }
-    
-    return weeks;
-  };
-
-  const weeklyTaskCompletion = getWeeklyTaskCompletion();
-
-  // Calculate expense breakdown
-  const getExpenseCategories = () => {
-    const categoryTotals: { [key: string]: number } = {};
-    const expenseOnly = safeExpenses.filter(e => e.type === 'expense');
-    
-    expenseOnly.forEach(expense => {
-      categoryTotals[expense.category] = (categoryTotals[expense.category] || 0) + expense.amount;
-    });
-
-    const total = Object.values(categoryTotals).reduce((sum, val) => sum + val, 0);
-    
-    return Object.entries(categoryTotals).map(([category, amount]) => ({
-      category,
-      amount: Math.round(amount),
-      percentage: total > 0 ? Math.round((amount / total) * 100) : 0
-    })).sort((a, b) => b.amount - a.amount);
-  };
-
-  const expenseCategories = getExpenseCategories();
-
-  // Calculate subject performance
-  const subjectPerformance = safeSubjects.map(subject => {
-    const gradeToScore: { [key: string]: number } = {
-      'A+': 95, 'A': 92, 'A-': 88,
-      'B+': 85, 'B': 82, 'B-': 78,
-      'C+': 75, 'C': 72, 'C-': 68,
-      'D': 65, 'F': 50
-    };
-    
-    return {
-      subject: subject.name,
-      score: gradeToScore[subject.grade] || 85,
-      trend: subject.progress >= 75 ? 'up' : subject.progress >= 50 ? 'neutral' : 'down' as 'up' | 'down' | 'neutral'
-    };
-  });
 
   // Generate calendar data for the current month
   const generateCalendarData = () => {
@@ -117,22 +67,20 @@ export function Analytics() {
       calendarDays.push(null);
     }
 
-    // Add actual days with task completion data
+    // Add actual days with task completion data from backend
     for (let day = 1; day <= daysInMonth; day++) {
       const date = new Date(year, month, day);
       const dateString = date.toISOString().split('T')[0];
       
-      // For now, use habits as proxy for daily tasks
-      const completedCount = day <= completedHabits ? 1 : 0;
-      const totalCount = 1;
-      const completionRate = totalCount > 0 ? (completedCount / totalCount) * 100 : -1;
+      const dayData = dailyTaskCompletion[dateString] || { completed: 0, total: 0 };
+      const completionRate = dayData.total > 0 ? (dayData.completed / dayData.total) * 100 : -1;
 
       calendarDays.push({
         day,
         date: dateString,
         completionRate,
-        tasksCompleted: completedCount,
-        tasksTotal: totalCount,
+        tasksCompleted: dayData.completed,
+        tasksTotal: dayData.total,
         isToday: dateString === new Date().toISOString().split('T')[0]
       });
     }
@@ -142,33 +90,6 @@ export function Analytics() {
 
   const calendarDays = generateCalendarData();
   const monthNames = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
-
-  const achievements = [
-    { 
-      id: 1, 
-      title: `${Math.max(...habits.map(h => h.streak))} Day Streak`, 
-      description: "Your best habit streak!", 
-      icon: "🔥" 
-    },
-    { 
-      id: 2, 
-      title: `${completedTasks.length} Tasks Done`, 
-      description: "Completed tasks this month", 
-      icon: "✅" 
-    },
-    { 
-      id: 3, 
-      title: `${savingsRate}% Savings`, 
-      description: "Your current savings rate", 
-      icon: "💰" 
-    },
-    { 
-      id: 4, 
-      title: `${skills.length} Skills`, 
-      description: "Skills you're developing", 
-      icon: "⭐" 
-    }
-  ];
 
   const balanceData = [
     { category: "Study", value: 35, color: "bg-blue-500" },
@@ -360,11 +281,17 @@ export function Analytics() {
           <div className="flex items-center justify-center mb-4">
             <div className="relative w-40 h-40">
               <svg className="w-40 h-40 transform -rotate-90">
-                {balanceData.map((item, index) => {
-                  const total = balanceData.reduce((sum, d) => sum + d.value, 0);
-                  const percentage = (item.value / total) * 100;
+                {[
+                  { category: "Study", value: 35, color: "bg-blue-500" },
+                  { category: "Skills", value: 25, color: "bg-violet-500" },
+                  { category: "Lifestyle", value: 20, color: "bg-green-500" },
+                  { category: "Social", value: 12, color: "bg-orange-500" },
+                  { category: "Rest", value: 8, color: "bg-gray-400" }
+                ].map((item, index) => {
+                  const total = 100;
+                  const percentage = item.value;
                   const circumference = 2 * Math.PI * 60;
-                  const offset = balanceData.slice(0, index).reduce((sum, d) => sum + (d.value / total) * circumference, 0);
+                  const offset = [35, 25, 20, 12, 8].slice(0, index).reduce((sum, d) => sum + (d / total) * circumference, 0);
                   
                   return (
                     <circle
@@ -391,7 +318,13 @@ export function Analytics() {
             </div>
           </div>
           <div className="space-y-2">
-            {balanceData.map((item, index) => (
+            {[
+              { category: "Study", value: 35, color: "bg-blue-500" },
+              { category: "Skills", value: 25, color: "bg-violet-500" },
+              { category: "Lifestyle", value: 20, color: "bg-green-500" },
+              { category: "Social", value: 12, color: "bg-orange-500" },
+              { category: "Rest", value: 8, color: "bg-gray-400" }
+            ].map((item, index) => (
               <div key={index} className="flex items-center justify-between">
                 <div className="flex items-center gap-2">
                   <div className={`w-3 h-3 rounded-full ${item.color}`}></div>
@@ -410,11 +343,11 @@ export function Analytics() {
         <Card className="p-4 border-border bg-card">
           <h2 className="text-foreground mb-3">Subject Performance Trends</h2>
           <div className="space-y-3">
-            {subjectPerformance.length > 0 ? (
-              subjectPerformance.map((subject, index) => (
-                <div key={index} className="p-3 bg-muted rounded-lg">
+            {subjectPerformance && subjectPerformance.length > 0 ? (
+              subjectPerformance.map((subject: any) => (
+                <div key={subject.id} className="p-3 bg-muted rounded-lg">
                   <div className="flex items-center justify-between mb-2">
-                    <span className="text-foreground font-medium">{subject.subject}</span>
+                    <span className="text-foreground font-medium">{subject.name}</span>
                     <div className="flex items-center gap-2">
                       <span className="text-foreground font-bold">{subject.score}%</span>
                       {subject.trend === 'up' && <span className="text-green-500">↑</span>}
@@ -475,64 +408,6 @@ export function Analytics() {
         </Card>
       </div>
 
-      {/* AI Summary & Achievements */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-3">
-        {/* AI Summary */}
-        <Card className="lg:col-span-2 p-4 border-border bg-card">
-          <div className="flex items-center gap-2 mb-3">
-            <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-violet-500 to-purple-500 flex items-center justify-center">
-              <Sparkles className="w-4 h-4 text-white" />
-            </div>
-            <h2 className="text-foreground">AI Analysis: Your Performance Insights</h2>
-          </div>
-          <div className="space-y-3">
-            <div className="p-3 bg-gradient-to-r from-green-50 to-emerald-50 dark:from-green-950 dark:to-emerald-950 border border-green-200 dark:border-green-800 rounded-lg">
-              <p className="text-green-700 dark:text-green-300 font-medium mb-1">🎯 Task Completion</p>
-              <p className="text-muted-foreground text-sm">
-                You've completed {monthlyStats.tasksCompleted} tasks this month with a wellness score of {monthlyStats.wellnessScore}%. 
-                {monthlyStats.wellnessScore >= 80 ? " Excellent consistency!" : " Keep building your habits!"}
-              </p>
-            </div>
-            <div className="p-3 bg-gradient-to-r from-blue-50 to-cyan-50 dark:from-blue-950 dark:to-cyan-950 border border-blue-200 dark:border-blue-800 rounded-lg">
-              <p className="text-blue-700 dark:text-blue-300 font-medium mb-1">📚 Academic Progress</p>
-              <p className="text-muted-foreground text-sm">
-                {subjects.length > 0 
-                  ? `You're tracking ${subjects.length} subject${subjects.length > 1 ? 's' : ''} with an average progress of ${Math.round(subjects.reduce((sum, s) => sum + s.progress, 0) / subjects.length)}%.`
-                  : "Start adding your subjects to track academic progress!"}
-              </p>
-            </div>
-            <div className="p-3 bg-gradient-to-r from-violet-50 to-purple-50 dark:from-violet-950 dark:to-purple-950 border border-violet-200 dark:border-violet-800 rounded-lg">
-              <p className="text-violet-700 dark:text-violet-300 font-medium mb-1">💪 Habit Streaks</p>
-              <p className="text-muted-foreground text-sm">
-                {habits.length > 0 
-                  ? `Your longest streak is ${Math.max(...habits.map(h => h.streak))} days! Consistency is the key to lasting change.`
-                  : "Create habits to build lasting positive changes in your life!"}
-              </p>
-            </div>
-          </div>
-        </Card>
-
-        {/* Recent Achievements */}
-        <Card className="p-4 border-border bg-card">
-          <div className="flex items-center gap-2 mb-3">
-            <Target className="w-5 h-5 text-violet-600" />
-            <h2 className="text-foreground">Achievements</h2>
-          </div>
-          <div className="space-y-2">
-            {achievements.map((achievement) => (
-              <div key={achievement.id} className="p-3 bg-gradient-to-r from-violet-50 to-purple-50 dark:from-violet-950 dark:to-purple-950 border border-violet-200 dark:border-violet-800 rounded-lg">
-                <div className="flex items-start gap-2">
-                  <span className="text-xl">{achievement.icon}</span>
-                  <div>
-                    <p className="text-foreground text-sm font-medium mb-1">{achievement.title}</p>
-                    <p className="text-muted-foreground text-xs">{achievement.description}</p>
-                  </div>
-                </div>
-              </div>
-            ))}
-          </div>
-        </Card>
-      </div>
     </div>
   );
 }

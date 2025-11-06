@@ -44,13 +44,36 @@ router.post('/', async (req: AuthRequest, res) => {
 router.put('/:id', async (req: AuthRequest, res) => {
   try {
     const { id } = req.params;
+    const { title, description, priority, status, dueDate, type, estimatedMinutes } = req.body;
+    
+    // Verify task exists and belongs to user
+    const existing = await prisma.task.findUnique({
+      where: { id }
+    });
+    
+    if (!existing || existing.userId !== req.userId) {
+      return res.status(404).json({ error: 'Task not found' });
+    }
+
     const task = await prisma.task.update({
-      where: { id, userId: req.userId },
-      data: req.body
+      where: { id },
+      data: {
+        title,
+        description: description || null,
+        priority: priority || 'medium',
+        status: status || existing.status,
+        dueDate: dueDate ? new Date(dueDate) : null,
+        type: type || existing.type,
+        estimatedMinutes: estimatedMinutes || existing.estimatedMinutes
+      }
     });
     res.json(task);
-  } catch (error) {
-    res.status(500).json({ error: 'Error updating task' });
+  } catch (error: any) {
+    console.error('Error updating task:', error);
+    res.status(500).json({ 
+      error: 'Error updating task',
+      message: error.message 
+    });
   }
 });
 

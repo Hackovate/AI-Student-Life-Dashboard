@@ -32,13 +32,13 @@ npm install
 3. Set up the database:
 ```bash
 # Generate Prisma client
-npm run prisma:generate
+npx prisma generate
 
 # Run database migrations
-npm run prisma:migrate
+npx prisma migrate deploy
 
 # (Optional) Open Prisma Studio to view/edit data
-npm run prisma:studio
+npx prisma studio
 ```
 
 ## Running the Application

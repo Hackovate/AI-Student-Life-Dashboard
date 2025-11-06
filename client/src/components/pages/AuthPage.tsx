@@ -39,7 +39,7 @@ export default function AuthPage() {
     setLoading(true);
     try {
       await register(registerEmail, registerPassword, firstName, lastName);
-      navigate('/dashboard');
+      navigate('/onboarding');
     } catch (err: any) {
       setError(err.message || 'Registration failed');
     } finally {
