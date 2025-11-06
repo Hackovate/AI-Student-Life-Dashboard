@@ -40,7 +40,7 @@ function AppContent() {
   const renderContent = () => {
     switch (activeSection) {
       case 'dashboard':
-        return <Dashboard />;
+        return <Dashboard onNavigate={setActiveSection} />;
       case 'assistant':
         return <PersonalizedAssistant />;
       case 'planner':
@@ -58,7 +58,7 @@ function AppContent() {
       case 'analytics':
         return <Analytics />;
       default:
-        return <Dashboard />;
+        return <Dashboard onNavigate={setActiveSection} />;
     }
   };
 
