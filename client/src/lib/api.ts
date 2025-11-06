@@ -199,7 +199,17 @@ export const financeAPI = {
     return apiRequest<any[]>('/finances');
   },
 
-  create: async (data: any) => {
+  create: async (data: {
+    category: string;
+    amount: number;
+    description: string;
+    date?: string;
+    type?: 'income' | 'expense';
+    paymentMethod?: string;
+    recurring?: boolean;
+    frequency?: string;
+    goalId?: string;
+  }) => {
     return apiRequest<any>('/finances', {
       method: 'POST',
       body: JSON.stringify(data),
@@ -218,9 +228,115 @@ export const financeAPI = {
       method: 'DELETE',
     });
   },
+
+  // New summary endpoints
+  getMonthlySummary: async () => {
+    return apiRequest<{
+      totalIncome: number;
+      totalExpenses: number;
+      balance: number;
+      netSavings: number;
+    }>('/finances/summary/monthly');
+  },
+
+  getCategoryBreakdown: async (type: 'income' | 'expense' = 'expense') => {
+    return apiRequest<Record<string, number>>(`/finances/summary/categories?type=${type}`);
+  },
+
+  getAIInsights: async () => {
+    return apiRequest<{
+      message: string;
+      insights: any[];
+      recommendations: any[];
+    }>('/finances/ai-insight');
+  },
 };
 
-// Journal API
+// Savings Goal API
+export const savingsGoalAPI = {
+  getAll: async () => {
+    return apiRequest<any[]>('/savings');
+  },
+
+  create: async (data: {
+    title: string;
+    targetAmount: number;
+    category?: string;
+    dueDate?: string;
+    description?: string;
+    priority?: string;
+  }) => {
+    return apiRequest<any>('/savings', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  },
+
+  update: async (id: string, data: any) => {
+    return apiRequest<any>(`/savings/${id}`, {
+      method: 'PUT',
+      body: JSON.stringify(data),
+    });
+  },
+
+  delete: async (id: string) => {
+    return apiRequest<{ message: string }>(`/savings/${id}`, {
+      method: 'DELETE',
+    });
+  },
+
+  getProgress: async (id: string) => {
+    return apiRequest<any>(`/savings/${id}/progress`);
+  },
+};
+
+// Monthly Budget API
+export const monthlyBudgetAPI = {
+  getAll: async (month?: number, year?: number) => {
+    const params = new URLSearchParams();
+    if (month) params.append('month', month.toString());
+    if (year) params.append('year', year.toString());
+    const query = params.toString() ? `?${params.toString()}` : '';
+    return apiRequest<any[]>(`/monthly-budgets${query}`);
+  },
+
+  create: async (data: {
+    title: string;
+    targetAmount: number;
+    category?: string;
+    month?: number;
+    year?: number;
+    description?: string;
+    priority?: string;
+  }) => {
+    return apiRequest<any>('/monthly-budgets', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  },
+
+  update: async (id: string, data: any) => {
+    return apiRequest<any>(`/monthly-budgets/${id}`, {
+      method: 'PUT',
+      body: JSON.stringify(data),
+    });
+  },
+
+  delete: async (id: string) => {
+    return apiRequest<{ message: string }>(`/monthly-budgets/${id}`, {
+      method: 'DELETE',
+    });
+  },
+
+  getProgress: async (month?: number, year?: number) => {
+    const params = new URLSearchParams();
+    if (month) params.append('month', month.toString());
+    if (year) params.append('year', year.toString());
+    const query = params.toString() ? `?${params.toString()}` : '';
+    return apiRequest<any[]>(`/monthly-budgets/progress${query}`);
+  },
+};
+
 export const journalAPI = {
   getAll: async () => {
     return apiRequest<any[]>('/journals');
@@ -425,6 +541,8 @@ export default {
   auth: authAPI,
   academics: academicsAPI,
   finance: financeAPI,
+  savingsGoal: savingsGoalAPI,
+  monthlyBudget: monthlyBudgetAPI,
   journal: journalAPI,
   tasks: tasksAPI,
   skills: skillsAPI,

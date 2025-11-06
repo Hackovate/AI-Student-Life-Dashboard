@@ -10,6 +10,8 @@ import taskRoutes from './routes/task.routes';
 import skillRoutes from './routes/skill.routes';
 import lifestyleRoutes from './routes/lifestyle.routes';
 import attendanceRoutes from './routes/attendance.routes';
+import savingsRoutes from './routes/savings.routes';
+import monthlyBudgetRoutes from './routes/monthly-budget.routes';
 
 // Load environment variables
 dotenv.config();
@@ -35,6 +37,8 @@ app.use('/api/tasks', taskRoutes);
 app.use('/api/skills', skillRoutes);
 app.use('/api/lifestyle', lifestyleRoutes);
 app.use('/api/attendance', attendanceRoutes);
+app.use('/api/savings', savingsRoutes);
+app.use('/api/monthly-budgets', monthlyBudgetRoutes);
 
 // Health check route
 app.get('/api/health', (req, res) => {

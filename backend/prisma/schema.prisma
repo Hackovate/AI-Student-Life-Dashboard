@@ -26,6 +26,8 @@ model User {
   milestones        Milestone[]
   learningResources LearningResource[]
   aiRecommendations AIRecommendation[]
+  savingsGoals      SavingsGoal[]
+  monthlyBudgets    MonthlyBudget[]
 
   @@map("users")
 }
@@ -116,17 +118,68 @@ model Exam {
 }
 
 model Finance {
-  id          String   @id @default(uuid())
-  userId      String
-  category    String
-  amount      Float
-  description String?
-  date        DateTime @default(now())
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
-  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  id            String        @id @default(uuid())
+  userId        String
+  category      String
+  amount        Float
+  description   String?
+  date          DateTime      @default(now())
+  
+  // Enhanced fields for AI-ready finance tracking
+  type          String        @default("expense") // income or expense
+  paymentMethod String?       // cash, card, digital, bank_transfer, etc.
+  recurring     Boolean       @default(false)
+  frequency     String?       // weekly, monthly, yearly, quarterly
+  aiGenerated   Boolean       @default(false) // for AI-suggested transactions
+  goalId        String?       // link to savings goal
+  
+  createdAt     DateTime      @default(now())
+  updatedAt     DateTime      @updatedAt
+  user          User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  savingsGoal   SavingsGoal?  @relation(fields: [goalId], references: [id], onDelete: SetNull)
 
   @@map("finances")
+}
+
+model SavingsGoal {
+  id            String     @id @default(uuid())
+  userId        String
+  title         String
+  targetAmount  Float
+  currentAmount Float      @default(0)
+  category      String?    // emergency, vacation, education, investment, etc.
+  dueDate       DateTime?
+  progress      Float      @default(0) // 0-100 percentage
+  aiGenerated   Boolean    @default(false)
+  description   String?
+  priority      String?    @default("medium") // high, medium, low
+  status        String     @default("active") // active, completed, cancelled
+  createdAt     DateTime   @default(now())
+  updatedAt     DateTime   @updatedAt
+  user          User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  finances      Finance[]
+
+  @@map("savings_goals")
+}
+
+model MonthlyBudget {
+  id            String    @id @default(uuid())
+  userId        String
+  title         String
+  targetAmount  Float
+  currentAmount Float     @default(0)
+  category      String?   // general, food, housing, education, entertainment, etc.
+  month         Int       // 1-12
+  year          Int
+  aiGenerated   Boolean   @default(false)
+  description   String?
+  priority      String?   @default("medium") // high, medium, low
+  status        String    @default("active") // active, completed, cancelled
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+  user          User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("monthly_budgets")
 }
 
 model Journal {

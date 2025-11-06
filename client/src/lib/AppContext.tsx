@@ -35,11 +35,16 @@ interface Skill {
 
 interface Expense {
   id: string;
-  name: string;
   category: string;
   amount: number;
+  description: string;
   date: string;
   type: 'expense' | 'income';
+  paymentMethod?: string;
+  recurring?: boolean;
+  frequency?: string;
+  aiGenerated?: boolean;
+  goalId?: string;
 }
 
 interface Habit {
@@ -184,9 +189,9 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
 
     // Initialize default expenses
     setExpenses([
-      { id: '1', name: "Campus Meal Plan", category: "Food", amount: 450, date: new Date().toISOString(), type: 'expense' },
-      { id: '2', name: "Textbooks", category: "Education", amount: 280, date: new Date().toISOString(), type: 'expense' },
-      { id: '3', name: "Part-time Job", category: "Income", amount: 800, date: new Date().toISOString(), type: 'income' },
+      { id: '1', description: "Campus Meal Plan", category: "Food", amount: 450, date: new Date().toISOString(), type: 'expense' },
+      { id: '2', description: "Textbooks", category: "Education", amount: 280, date: new Date().toISOString(), type: 'expense' },
+      { id: '3', description: "Part-time Job", category: "Income", amount: 800, date: new Date().toISOString(), type: 'income' },
     ]);
 
     // Initialize default habits

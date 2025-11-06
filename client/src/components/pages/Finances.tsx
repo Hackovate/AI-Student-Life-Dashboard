@@ -1,24 +1,97 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Plus, TrendingUp, TrendingDown, Wallet, ShoppingBag, Home, Utensils, GraduationCap, Heart, Trash2, Briefcase } from 'lucide-react';
 import { Card } from '../ui/card';
 import { Button } from '../ui/button';
 import { Progress } from '../ui/progress';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from '../ui/dialog';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '../ui/dialog';
 import { Input } from '../ui/input';
 import { Label } from '../ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../ui/select';
-import { useApp } from '../../lib/AppContext';
+import { Checkbox } from '../ui/checkbox';
+import { financeAPI, savingsGoalAPI, monthlyBudgetAPI } from '../../lib/api';
 import { toast } from 'sonner';
 
+interface FinanceTransaction {
+  id: string;
+  category: string;
+  amount: number;
+  description: string;
+  date: string;
+  type: 'expense' | 'income';
+  paymentMethod?: string;
+  recurring?: boolean;
+  frequency?: string;
+  aiGenerated?: boolean;
+  goalId?: string;
+}
+
 export function Finances() {
-  const { expenses, addExpense, deleteExpense, monthlyBudget, savingsGoal, updateBudget, updateSavings } = useApp();
+  const [expenses, setExpenses] = useState<FinanceTransaction[]>([]);
+  const [monthlySummary, setMonthlySummary] = useState({
+    totalIncome: 0,
+    totalExpenses: 0,
+    balance: 0,
+    netSavings: 0
+  });
+  const [categoryBreakdown, setCategoryBreakdown] = useState<Record<string, number>>({});
+  const [savingsGoals, setSavingsGoals] = useState<any[]>([]);
+  const [monthlyBudgets, setMonthlyBudgets] = useState<any[]>([]);
+  const [monthlyBudgetProgress, setMonthlyBudgetProgress] = useState<any[]>([]);
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
+  const [isSavingsGoalDialogOpen, setIsSavingsGoalDialogOpen] = useState(false);
+  const [isMonthlyBudgetDialogOpen, setIsMonthlyBudgetDialogOpen] = useState(false);
   const [newExpense, setNewExpense] = useState({
-    name: '',
+    description: '',
     category: 'Food',
     amount: '',
     type: 'expense' as 'expense' | 'income',
+    paymentMethod: '',
+    recurring: false,
+    frequency: '',
   });
+  const [newSavingsGoal, setNewSavingsGoal] = useState({
+    title: '',
+    targetAmount: '',
+    category: '',
+    dueDate: '',
+    description: '',
+    priority: 'medium' as 'low' | 'medium' | 'high',
+  });
+  const [newMonthlyBudget, setNewMonthlyBudget] = useState({
+    title: '',
+    targetAmount: '',
+    category: '',
+    description: '',
+    priority: 'medium' as 'low' | 'medium' | 'high',
+  });
+
+  // Load data on component mount
+  useEffect(() => {
+    loadFinanceData();
+  }, []);
+
+  const loadFinanceData = async () => {
+    try {
+      const [transactions, summary, breakdown, goals, budgets, budgetProg] = await Promise.all([
+        financeAPI.getAll(),
+        financeAPI.getMonthlySummary(),
+        financeAPI.getCategoryBreakdown('expense'),
+        savingsGoalAPI.getAll(),
+        monthlyBudgetAPI.getAll(),
+        monthlyBudgetAPI.getProgress()
+      ]);
+      
+      setExpenses(transactions);
+      setMonthlySummary(summary);
+      setCategoryBreakdown(breakdown);
+      setSavingsGoals(goals);
+      setMonthlyBudgets(budgets);
+      setMonthlyBudgetProgress(budgetProg);
+    } catch (error) {
+      console.error('Error loading finance data:', error);
+      toast.error('Failed to load finance data');
+    }
+  };
 
   const expenseCategories = [
     { name: 'Food', icon: Utensils, color: 'from-orange-500 to-red-500' },
@@ -42,20 +115,30 @@ export function Finances() {
   const currentCategories = newExpense.type === 'income' ? incomeCategories : expenseCategories;
 
   // Calculate dynamic values based on actual transactions
-  const totalExpenses = expenses
-    .filter(e => e.type === 'expense')
-    .reduce((sum, e) => sum + e.amount, 0);
-
-  const totalIncome = expenses
-    .filter(e => e.type === 'income')
-    .reduce((sum, e) => sum + e.amount, 0);
+  const totalExpenses = monthlySummary.totalExpenses;
+  const totalIncome = monthlySummary.totalIncome;
 
   // Available balance = Total Income - Total Expenses
-  const actualBalance = totalIncome - totalExpenses;
+  const actualBalance = monthlySummary.balance;
 
   // Net savings (actual money saved)
-  const netSavings = Math.max(0, actualBalance);
-  const currentSavings = netSavings;
+  const netSavings = monthlySummary.netSavings;
+
+  // Calculate monthly budget from user-set budgets
+  const monthlyBudget = monthlyBudgets
+    .filter((budget: any) => budget.status === 'active')
+    .reduce((sum: number, budget: any) => sum + budget.targetAmount, 0);
+
+  // Use the first active savings goal or sum of all active goals
+  const activeSavingsGoals = savingsGoals.filter((goal: any) => goal.status === 'active');
+  const savingsGoal = activeSavingsGoals.length > 0 
+    ? activeSavingsGoals.reduce((sum: number, goal: any) => sum + goal.targetAmount, 0)
+    : 0;
+
+  // Current savings from goals
+  const currentSavings = activeSavingsGoals.length > 0
+    ? activeSavingsGoals.reduce((sum: number, goal: any) => sum + (goal.currentAmount || 0), 0)
+    : netSavings;
 
   // Savings progress
   const savingsProgress = savingsGoal > 0 ? (currentSavings / savingsGoal) * 100 : 0;
@@ -63,11 +146,9 @@ export function Finances() {
   // Budget progress (spending vs budget)
   const budgetProgress = monthlyBudget > 0 ? (totalExpenses / monthlyBudget) * 100 : 0;
 
-  // Calculate category breakdown
-  const categoryBreakdown = expenseCategories.map(cat => {
-    const total = expenses
-      .filter(e => e.category === cat.name && e.type === 'expense')
-      .reduce((sum, e) => sum + e.amount, 0);
+  // Calculate category breakdown from API data
+  const categoryBreakdownData = expenseCategories.map(cat => {
+    const total = categoryBreakdown[cat.name] || 0;
     return {
       category: cat.name,
       amount: total,
@@ -77,26 +158,122 @@ export function Finances() {
     };
   }).filter(c => c.amount > 0);
 
-  const handleAddExpense = () => {
-    if (!newExpense.name || !newExpense.amount) {
+  const handleAddExpense = async () => {
+    if (!newExpense.description || !newExpense.amount) {
       toast.error('Please fill in all fields');
       return;
     }
 
-    addExpense({
-      ...newExpense,
-      amount: parseFloat(newExpense.amount),
-      date: new Date().toISOString(),
-    });
+    try {
+      await financeAPI.create({
+        category: newExpense.category,
+        amount: parseFloat(newExpense.amount),
+        description: newExpense.description,
+        type: newExpense.type,
+        paymentMethod: newExpense.paymentMethod || undefined,
+        recurring: newExpense.recurring,
+        frequency: newExpense.frequency || undefined,
+      });
 
-    setNewExpense({ name: '', category: 'Food', amount: '', type: 'expense' });
-    setIsAddDialogOpen(false);
-    toast.success(`${newExpense.type === 'income' ? 'Income' : 'Expense'} added successfully!`);
+      setNewExpense({ 
+        description: '', 
+        category: 'Food', 
+        amount: '', 
+        type: 'expense',
+        paymentMethod: '',
+        recurring: false,
+        frequency: '',
+      });
+      setIsAddDialogOpen(false);
+      toast.success(`${newExpense.type === 'income' ? 'Income' : 'Expense'} added successfully!`);
+      
+      // Reload data to reflect changes
+      await loadFinanceData();
+    } catch (error) {
+      console.error('Error adding transaction:', error);
+      toast.error('Failed to add transaction');
+    }
   };
 
-  const handleDeleteExpense = (id: string) => {
-    deleteExpense(id);
-    toast.success('Transaction deleted!');
+  const handleDeleteExpense = async (id: string) => {
+    try {
+      await financeAPI.delete(id);
+      toast.success('Transaction deleted!');
+      
+      // Reload data to reflect changes
+      await loadFinanceData();
+    } catch (error) {
+      console.error('Error deleting transaction:', error);
+      toast.error('Failed to delete transaction');
+    }
+  };
+
+  const handleAddSavingsGoal = async () => {
+    if (!newSavingsGoal.title || !newSavingsGoal.targetAmount) {
+      toast.error('Please fill in title and target amount');
+      return;
+    }
+
+    try {
+      await savingsGoalAPI.create({
+        title: newSavingsGoal.title,
+        targetAmount: parseFloat(newSavingsGoal.targetAmount),
+        category: newSavingsGoal.category || undefined,
+        dueDate: newSavingsGoal.dueDate || undefined,
+        description: newSavingsGoal.description || undefined,
+        priority: newSavingsGoal.priority,
+      });
+
+      setNewSavingsGoal({
+        title: '',
+        targetAmount: '',
+        category: '',
+        dueDate: '',
+        description: '',
+        priority: 'medium',
+      });
+      setIsSavingsGoalDialogOpen(false);
+      toast.success('Savings goal added successfully!');
+      
+      // Reload data to reflect changes
+      await loadFinanceData();
+    } catch (error) {
+      console.error('Error adding savings goal:', error);
+      toast.error('Failed to add savings goal');
+    }
+  };
+
+  const handleAddMonthlyBudget = async () => {
+    if (!newMonthlyBudget.title || !newMonthlyBudget.targetAmount) {
+      toast.error('Please fill in title and target amount');
+      return;
+    }
+
+    try {
+      await monthlyBudgetAPI.create({
+        title: newMonthlyBudget.title,
+        targetAmount: parseFloat(newMonthlyBudget.targetAmount),
+        category: newMonthlyBudget.category || undefined,
+        description: newMonthlyBudget.description || undefined,
+        priority: newMonthlyBudget.priority,
+      });
+
+      setNewMonthlyBudget({
+        title: '',
+        targetAmount: '',
+        category: '',
+        description: '',
+        priority: 'medium',
+      });
+      setIsMonthlyBudgetDialogOpen(false);
+      toast.success('Monthly budget added successfully!');
+      
+      // Reload data to reflect changes
+      await loadFinanceData();
+    } catch (error) {
+      console.error('Error adding monthly budget:', error);
+      toast.error('Failed to add monthly budget');
+    }
   };
 
   return (
@@ -107,18 +284,30 @@ export function Finances() {
           <h1 className="text-foreground text-3xl mb-1">Expense & Savings Tracker</h1>
           <p className="text-muted-foreground">Manage your finances and reach your savings goals</p>
         </div>
-        
-        <Dialog open={isAddDialogOpen} onOpenChange={setIsAddDialogOpen}>
-          <DialogTrigger asChild>
-            <Button className="bg-primary hover:bg-primary/90 text-primary-foreground gap-2">
-              <Plus className="w-4 h-4" />
-              Add Transaction
-            </Button>
-          </DialogTrigger>
-          <DialogContent>
-            <DialogHeader>
-              <DialogTitle>Add New Transaction</DialogTitle>
-            </DialogHeader>
+        <div className="flex gap-2">
+          <Button variant="outline" className="gap-2" onClick={() => setIsSavingsGoalDialogOpen(true)}>
+            <TrendingUp className="w-4 h-4" />
+            Add Savings Goal
+          </Button>
+          
+          <Button variant="outline" className="gap-2" onClick={() => setIsMonthlyBudgetDialogOpen(true)}>
+            <Wallet className="w-4 h-4" />
+            Add Monthly Budget
+          </Button>
+          
+          <Button className="bg-primary hover:bg-primary/90 text-primary-foreground gap-2" onClick={() => setIsAddDialogOpen(true)}>
+            <Plus className="w-4 h-4" />
+            Add Transaction
+          </Button>
+        </div>
+      </div>
+
+      {/* Dialogs */}
+      <Dialog open={isAddDialogOpen} onOpenChange={setIsAddDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Add New Transaction</DialogTitle>
+          </DialogHeader>
             <div className="space-y-4">
               <div>
                 <Label htmlFor="type">Type</Label>
@@ -140,12 +329,12 @@ export function Finances() {
                 </Select>
               </div>
               <div>
-                <Label htmlFor="name">Description</Label>
+                <Label htmlFor="description">Description</Label>
                 <Input
-                  id="name"
+                  id="description"
                   placeholder="e.g., Groceries, Salary"
-                  value={newExpense.name}
-                  onChange={(e) => setNewExpense({ ...newExpense, name: e.target.value })}
+                  value={newExpense.description}
+                  onChange={(e) => setNewExpense({ ...newExpense, description: e.target.value })}
                 />
               </div>
               <div>
@@ -162,7 +351,7 @@ export function Finances() {
                 </Select>
               </div>
               <div>
-                <Label htmlFor="amount">Amount ($)</Label>
+                <Label htmlFor="amount">Amount (BDT)</Label>
                 <Input
                   id="amount"
                   type="number"
@@ -171,6 +360,48 @@ export function Finances() {
                   onChange={(e) => setNewExpense({ ...newExpense, amount: e.target.value })}
                 />
               </div>
+              <div>
+                <Label htmlFor="paymentMethod">Payment Method (Optional)</Label>
+                <Select value={newExpense.paymentMethod} onValueChange={(value: string) => setNewExpense({ ...newExpense, paymentMethod: value })}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select payment method" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="cash">Cash</SelectItem>
+                    <SelectItem value="credit_card">Credit Card</SelectItem>
+                    <SelectItem value="debit_card">Debit Card</SelectItem>
+                    <SelectItem value="bank_transfer">Bank Transfer</SelectItem>
+                    <SelectItem value="digital_wallet">Digital Wallet</SelectItem>
+                    <SelectItem value="check">Check</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="flex items-center space-x-2">
+                <Checkbox
+                  id="recurring"
+                  checked={newExpense.recurring}
+                  onCheckedChange={(checked: boolean) => setNewExpense({ ...newExpense, recurring: checked })}
+                />
+                <Label htmlFor="recurring">Recurring Transaction</Label>
+              </div>
+              {newExpense.recurring && (
+                <div>
+                  <Label htmlFor="frequency">Frequency</Label>
+                  <Select value={newExpense.frequency} onValueChange={(value: string) => setNewExpense({ ...newExpense, frequency: value })}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select frequency" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="daily">Daily</SelectItem>
+                      <SelectItem value="weekly">Weekly</SelectItem>
+                      <SelectItem value="biweekly">Bi-weekly</SelectItem>
+                      <SelectItem value="monthly">Monthly</SelectItem>
+                      <SelectItem value="quarterly">Quarterly</SelectItem>
+                      <SelectItem value="yearly">Yearly</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+              )}
             </div>
             <DialogFooter>
               <Button variant="outline" onClick={() => setIsAddDialogOpen(false)}>Cancel</Button>
@@ -178,7 +409,151 @@ export function Finances() {
             </DialogFooter>
           </DialogContent>
         </Dialog>
-      </div>
+
+      {/* Savings Goal Dialog */}
+      <Dialog open={isSavingsGoalDialogOpen} onOpenChange={setIsSavingsGoalDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Add Savings Goal</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div>
+              <Label htmlFor="goal-title">Title</Label>
+              <Input
+                id="goal-title"
+                value={newSavingsGoal.title}
+                onChange={(e) => setNewSavingsGoal({ ...newSavingsGoal, title: e.target.value })}
+                placeholder="e.g., Emergency Fund"
+              />
+            </div>
+            <div>
+              <Label htmlFor="goal-amount">Target Amount (BDT)</Label>
+              <Input
+                id="goal-amount"
+                type="number"
+                value={newSavingsGoal.targetAmount}
+                onChange={(e) => setNewSavingsGoal({ ...newSavingsGoal, targetAmount: e.target.value })}
+                placeholder="50000"
+              />
+            </div>
+            <div>
+              <Label htmlFor="goal-category">Category (Optional)</Label>
+              <Input
+                id="goal-category"
+                value={newSavingsGoal.category}
+                onChange={(e) => setNewSavingsGoal({ ...newSavingsGoal, category: e.target.value })}
+                placeholder="e.g., Emergency"
+              />
+            </div>
+            <div>
+              <Label htmlFor="goal-duedate">Due Date (Optional)</Label>
+              <Input
+                id="goal-duedate"
+                type="date"
+                value={newSavingsGoal.dueDate}
+                onChange={(e) => setNewSavingsGoal({ ...newSavingsGoal, dueDate: e.target.value })}
+              />
+            </div>
+            <div>
+              <Label htmlFor="goal-description">Description (Optional)</Label>
+              <Input
+                id="goal-description"
+                value={newSavingsGoal.description}
+                onChange={(e) => setNewSavingsGoal({ ...newSavingsGoal, description: e.target.value })}
+                placeholder="Additional details..."
+              />
+            </div>
+            <div>
+              <Label htmlFor="goal-priority">Priority</Label>
+              <Select 
+                value={newSavingsGoal.priority} 
+                onValueChange={(value: 'low' | 'medium' | 'high') => setNewSavingsGoal({ ...newSavingsGoal, priority: value })}
+              >
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="low">Low</SelectItem>
+                  <SelectItem value="medium">Medium</SelectItem>
+                  <SelectItem value="high">High</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setIsSavingsGoalDialogOpen(false)}>Cancel</Button>
+            <Button onClick={handleAddSavingsGoal}>Add Goal</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Monthly Budget Dialog */}
+      <Dialog open={isMonthlyBudgetDialogOpen} onOpenChange={setIsMonthlyBudgetDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Add Monthly Budget</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div>
+              <Label htmlFor="budget-title">Title</Label>
+              <Input
+                id="budget-title"
+                value={newMonthlyBudget.title}
+                onChange={(e) => setNewMonthlyBudget({ ...newMonthlyBudget, title: e.target.value })}
+                placeholder="e.g., Food Budget"
+              />
+            </div>
+            <div>
+              <Label htmlFor="budget-amount">Target Amount (BDT)</Label>
+              <Input
+                id="budget-amount"
+                type="number"
+                value={newMonthlyBudget.targetAmount}
+                onChange={(e) => setNewMonthlyBudget({ ...newMonthlyBudget, targetAmount: e.target.value })}
+                placeholder="10000"
+              />
+            </div>
+            <div>
+              <Label htmlFor="budget-category">Category (Optional)</Label>
+              <Input
+                id="budget-category"
+                value={newMonthlyBudget.category}
+                onChange={(e) => setNewMonthlyBudget({ ...newMonthlyBudget, category: e.target.value })}
+                placeholder="e.g., Food"
+              />
+            </div>
+            <div>
+              <Label htmlFor="budget-description">Description (Optional)</Label>
+              <Input
+                id="budget-description"
+                value={newMonthlyBudget.description}
+                onChange={(e) => setNewMonthlyBudget({ ...newMonthlyBudget, description: e.target.value })}
+                placeholder="Additional details..."
+              />
+            </div>
+            <div>
+              <Label htmlFor="budget-priority">Priority</Label>
+              <Select 
+                value={newMonthlyBudget.priority} 
+                onValueChange={(value: 'low' | 'medium' | 'high') => setNewMonthlyBudget({ ...newMonthlyBudget, priority: value })}
+              >
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="low">Low</SelectItem>
+                  <SelectItem value="medium">Medium</SelectItem>
+                  <SelectItem value="high">High</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setIsMonthlyBudgetDialogOpen(false)}>Cancel</Button>
+            <Button onClick={handleAddMonthlyBudget}>Add Budget</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {/* Top Stats */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
@@ -186,7 +561,7 @@ export function Finances() {
           <div className="flex items-center justify-between mb-3">
             <div>
               <p className="text-muted-foreground text-sm mb-0.5">Total Income</p>
-              <p className="text-foreground text-3xl">${totalIncome.toFixed(0)}</p>
+              <p className="text-foreground text-3xl">{totalIncome.toFixed(0)} BDT</p>
               <p className="text-green-600 dark:text-green-400 text-sm mt-0.5">This month</p>
             </div>
             <div className="w-10 h-10 rounded-lg bg-gradient-to-br from-green-500 to-emerald-500 flex items-center justify-center">
@@ -199,8 +574,8 @@ export function Finances() {
           <div className="flex items-center justify-between mb-3">
             <div>
               <p className="text-muted-foreground text-sm mb-0.5">Total Expenses</p>
-              <p className="text-foreground text-3xl">${totalExpenses.toFixed(0)}</p>
-              <p className="text-muted-foreground text-sm mt-0.5">of ${monthlyBudget} budget</p>
+              <p className="text-foreground text-3xl">{totalExpenses.toFixed(0)} BDT</p>
+              <p className="text-muted-foreground text-sm mt-0.5">of {monthlyBudget} BDT budget</p>
             </div>
             <div className="w-10 h-10 rounded-lg bg-gradient-to-br from-orange-500 to-red-500 flex items-center justify-center">
               <Wallet className="w-5 h-5 text-white" />
@@ -218,7 +593,7 @@ export function Finances() {
           <div className="flex items-center justify-between">
             <div>
               <p className="text-muted-foreground text-sm mb-0.5">Available Balance</p>
-              <p className="text-foreground text-3xl">${actualBalance.toFixed(0)}</p>
+              <p className="text-foreground text-3xl">{actualBalance.toFixed(0)} BDT</p>
               <div className={`flex items-center gap-1 text-sm mt-0.5 ${
                 actualBalance >= 0 
                   ? 'text-green-600 dark:text-green-400' 
@@ -247,8 +622,8 @@ export function Finances() {
           <div className="flex items-center justify-between">
             <div>
               <p className="text-primary text-sm mb-0.5">Savings Goal</p>
-              <p className="text-foreground text-3xl">${currentSavings}</p>
-              <p className="text-muted-foreground text-sm mt-0.5">of ${savingsGoal} goal</p>
+              <p className="text-foreground text-3xl">{currentSavings} BDT</p>
+              <p className="text-muted-foreground text-sm mt-0.5">of BDT {savingsGoal} goal</p>
             </div>
             <div className="relative w-10 h-10">
               <svg className="w-10 h-10 transform -rotate-90">
@@ -278,10 +653,10 @@ export function Finances() {
         <Card className="p-4 border-border bg-card">
           <h2 className="text-foreground mb-3">Monthly Spending by Category</h2>
           <div className="space-y-3">
-            {categoryBreakdown.length === 0 ? (
+            {categoryBreakdownData.length === 0 ? (
               <p className="text-muted-foreground text-center py-4">No expenses this month</p>
             ) : (
-              categoryBreakdown.map((item, index) => {
+              categoryBreakdownData.map((item, index) => {
                 const Icon = item.icon;
                 return (
                   <div key={index}>
@@ -328,7 +703,7 @@ export function Finances() {
                         <Icon className="w-4 h-4 text-white" />
                       </div>
                       <div>
-                        <p className="text-foreground">{transaction.name}</p>
+                        <p className="text-foreground">{transaction.description}</p>
                         <p className="text-muted-foreground text-sm">
                           {new Date(transaction.date).toLocaleDateString()}
                         </p>
