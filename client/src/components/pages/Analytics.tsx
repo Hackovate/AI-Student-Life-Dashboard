@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { TrendingUp, Calendar, Sparkles } from 'lucide-react';
+import { TrendingUp, TrendingDown, Calendar, Sparkles } from 'lucide-react';
 import { Card } from '../ui/card';
 import { Button } from '../ui/button';
 import { Badge } from '../ui/badge';
@@ -45,7 +45,7 @@ export function Analytics() {
   }
 
   // Extract data from API response
-  const { monthlyStats, subjectPerformance, skills, expenses, expenseCategories, weeklyTaskCompletion, dailyTaskCompletion, achievements } = analyticsData;
+  const { monthlyStats, subjectPerformance, skills, expenseCategories, weeklyTaskCompletion, dailyTaskCompletion, timeBalance, totalIncome, totalExpenses } = analyticsData;
 
   // Calculate dynamic monthly stats
   const currentMonth = new Date().getMonth();
@@ -91,21 +91,28 @@ export function Analytics() {
   const calendarDays = generateCalendarData();
   const monthNames = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
 
-  const balanceData = [
-    { category: "Study", value: 35, color: "bg-blue-500" },
-    { category: "Skills", value: 25, color: "bg-violet-500" },
-    { category: "Lifestyle", value: 20, color: "bg-green-500" },
-    { category: "Social", value: 12, color: "bg-orange-500" },
-    { category: "Rest", value: 8, color: "bg-gray-400" }
+  // Use dynamic time balance from API, fallback to defaults if not available
+  const balanceData = timeBalance ? [
+    { category: "Study", value: timeBalance.study, color: "bg-blue-500" },
+    { category: "Skills", value: timeBalance.skills, color: "bg-violet-500" },
+    { category: "Lifestyle", value: timeBalance.lifestyle, color: "bg-green-500" },
+    { category: "Social", value: timeBalance.social, color: "bg-orange-500" },
+    { category: "Rest", value: timeBalance.rest, color: "bg-gray-400" }
+  ] : [
+    { category: "Study", value: 0, color: "bg-blue-500" },
+    { category: "Skills", value: 0, color: "bg-violet-500" },
+    { category: "Lifestyle", value: 0, color: "bg-green-500" },
+    { category: "Social", value: 0, color: "bg-orange-500" },
+    { category: "Rest", value: 0, color: "bg-gray-400" }
   ];
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-2">
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-foreground text-3xl mb-1">Analytics Dashboard</h1>
-          <p className="text-muted-foreground">Your comprehensive performance overview</p>
+          <h1 className="text-foreground text-2xl mb-0.5">Analytics Dashboard</h1>
+          <p className="text-muted-foreground text-sm">Your comprehensive performance overview</p>
         </div>
         <div className="flex gap-2">
           <Button variant="outline" className="gap-2">
@@ -117,15 +124,15 @@ export function Analytics() {
       </div>
 
       {/* Monthly Summary */}
-      <Card className="p-4 border-border bg-gradient-to-r from-violet-50 to-purple-50 dark:from-violet-950 dark:to-purple-950 border-violet-200 dark:border-violet-800">
-        <div className="flex items-center gap-2 mb-3">
+      <Card className="p-3 border-border bg-gradient-to-r from-violet-50 to-purple-50 dark:from-violet-950 dark:to-purple-950 border-violet-200 dark:border-violet-800">
+        <div className="flex items-center gap-2 mb-2">
           <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-violet-500 to-purple-500 flex items-center justify-center">
             <Sparkles className="w-4 h-4 text-white" />
           </div>
           <h2 className="text-foreground">Your Monthly Summary</h2>
           <Badge className="ml-auto bg-violet-500">{monthNames[currentMonth]} {currentYear}</Badge>
         </div>
-        <div className="grid grid-cols-5 gap-3">
+        <div className="grid grid-cols-5 gap-2">
           <div className="p-3 bg-card rounded-lg border border-border">
             <p className="text-violet-600 dark:text-violet-400 text-sm mb-1">Tasks Completed</p>
             <p className="text-foreground text-2xl">{monthlyStats.tasksCompleted}</p>
@@ -155,16 +162,16 @@ export function Analytics() {
       </Card>
 
       {/* Charts Row 1 */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-2">
         {/* Monthly Calendar */}
-        <Card className="p-4 border-border bg-card">
-          <div className="flex items-center justify-between mb-3">
-            <h2 className="text-foreground">Task Completion Calendar</h2>
-            <Badge variant="secondary">{monthNames[currentMonth]} {currentYear}</Badge>
+        <Card className="p-3 border-border bg-card">
+          <div className="flex items-center justify-between mb-1.5">
+            <h2 className="text-foreground text-lg">Task Completion Calendar</h2>
+            <Badge variant="secondary" className="text-xs">{monthNames[currentMonth]} {currentYear}</Badge>
           </div>
-          <div className="grid grid-cols-7 gap-1 text-center mb-2">
+          <div className="grid grid-cols-7 gap-1 text-center mb-1.5">
             {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map((day) => (
-              <div key={day} className="text-xs text-muted-foreground font-medium py-1">
+              <div key={day} className="text-xs text-muted-foreground font-medium py-0.5">
                 {day}
               </div>
             ))}
@@ -213,52 +220,52 @@ export function Analytics() {
               );
             })}
           </div>
-          <div className="mt-4 flex flex-wrap gap-2 text-xs">
+          <div className="mt-2 flex flex-wrap gap-1.5 text-xs">
             <div className="flex items-center gap-1">
-              <div className="w-2 h-2 rounded-full bg-gray-200 dark:bg-gray-700" />
+              <div className="w-1.5 h-1.5 rounded-full bg-gray-200 dark:bg-gray-700" />
               <span className="text-muted-foreground">No tasks</span>
             </div>
             <div className="flex items-center gap-1">
-              <div className="w-2 h-2 rounded-full bg-red-400" />
+              <div className="w-1.5 h-1.5 rounded-full bg-red-400" />
               <span className="text-muted-foreground">&lt;25%</span>
             </div>
             <div className="flex items-center gap-1">
-              <div className="w-2 h-2 rounded-full bg-orange-400" />
+              <div className="w-1.5 h-1.5 rounded-full bg-orange-400" />
               <span className="text-muted-foreground">25-50%</span>
             </div>
             <div className="flex items-center gap-1">
-              <div className="w-2 h-2 rounded-full bg-yellow-400" />
+              <div className="w-1.5 h-1.5 rounded-full bg-yellow-400" />
               <span className="text-muted-foreground">50-75%</span>
             </div>
             <div className="flex items-center gap-1">
-              <div className="w-2 h-2 rounded-full bg-blue-400" />
+              <div className="w-1.5 h-1.5 rounded-full bg-blue-400" />
               <span className="text-muted-foreground">75-99%</span>
             </div>
             <div className="flex items-center gap-1">
-              <div className="w-2 h-2 rounded-full bg-green-500" />
+              <div className="w-1.5 h-1.5 rounded-full bg-green-500" />
               <span className="text-muted-foreground">100%</span>
             </div>
           </div>
         </Card>
 
         {/* Task Completion Over Time */}
-        <Card className="p-4 border-border bg-card">
-          <div className="flex items-center justify-between mb-3">
-            <h2 className="text-foreground">Task Completion Over Time</h2>
-            <TrendingUp className="w-5 h-5 text-green-500" />
+        <Card className="p-3 border-border bg-card">
+          <div className="flex items-center justify-between mb-1.5">
+            <h2 className="text-foreground text-lg">Task Completion Over Time</h2>
+            <TrendingUp className="w-4 h-4 text-green-500" />
           </div>
-          <div className="space-y-3">
-            {weeklyTaskCompletion.map((week, index) => {
+          <div className="space-y-1.5 mb-3">
+            {weeklyTaskCompletion.map((week: any, index: number) => {
               const percentage = (week.completed / week.total) * 100;
               return (
                 <div key={index}>
-                  <div className="flex items-center justify-between text-sm mb-2">
+                  <div className="flex items-center justify-between text-xs mb-1">
                     <span className="text-muted-foreground">{week.week}</span>
                     <span className="text-foreground">{week.completed}/{week.total} ({Math.round(percentage)}%)</span>
                   </div>
-                  <div className="w-full bg-muted rounded-full h-2.5">
+                  <div className="w-full bg-muted rounded-full h-2">
                     <div 
-                      className="bg-gradient-to-r from-blue-500 to-cyan-500 h-2.5 rounded-full transition-all"
+                      className="bg-gradient-to-r from-blue-500 to-cyan-500 h-2 rounded-full transition-all"
                       style={{ width: `${percentage}%` }}
                     ></div>
                   </div>
@@ -266,83 +273,193 @@ export function Analytics() {
               );
             })}
           </div>
-          {weeklyTaskCompletion.length > 0 && (
-            <div className="mt-3 p-3 bg-green-50 dark:bg-green-950 border border-green-200 dark:border-green-800 rounded-lg">
-              <p className="text-green-700 dark:text-green-300 text-sm">
-                📈 Keep up the great work with your task completion!
-              </p>
-            </div>
-          )}
-        </Card>
 
+          {/* Task Statistics */}
+          {weeklyTaskCompletion.length > 0 && (() => {
+            const totalCompleted = weeklyTaskCompletion.reduce((sum: number, w: any) => sum + w.completed, 0);
+            const totalTasks = weeklyTaskCompletion.reduce((sum: number, w: any) => sum + w.total, 0);
+            const avgCompletion = totalTasks > 0 ? Math.round((totalCompleted / totalTasks) * 100) : 0;
+            const bestWeek = weeklyTaskCompletion.reduce((best: any, week: any) => {
+              const weekRate = (week.completed / week.total) * 100;
+              const bestRate = (best.completed / best.total) * 100;
+              return weekRate > bestRate ? week : best;
+            }, weeklyTaskCompletion[0]);
+            const improvement = weeklyTaskCompletion.length > 1 ? 
+              Math.round(((weeklyTaskCompletion[weeklyTaskCompletion.length - 1].completed / weeklyTaskCompletion[weeklyTaskCompletion.length - 1].total) * 100) - 
+                         ((weeklyTaskCompletion[0].completed / weeklyTaskCompletion[0].total) * 100)) : 0;
+
+            return (
+              <>
+                <div className="grid grid-cols-2 gap-2 mb-2">
+                  <div className="p-2 bg-muted rounded-lg">
+                    <p className="text-muted-foreground text-xs mb-0.5">Total Completed</p>
+                    <p className="text-foreground font-bold text-sm">{totalCompleted}/{totalTasks}</p>
+                  </div>
+                  <div className="p-2 bg-muted rounded-lg">
+                    <p className="text-muted-foreground text-xs mb-0.5">Avg Completion</p>
+                    <p className="text-foreground font-bold text-sm">{avgCompletion}%</p>
+                  </div>
+                </div>
+                <div className="grid grid-cols-2 gap-2 mb-2">
+                  <div className="p-2 bg-muted rounded-lg">
+                    <p className="text-muted-foreground text-xs mb-0.5">Best Week</p>
+                    <p className="text-foreground font-bold text-sm">{bestWeek.week}</p>
+                    <p className="text-green-600 dark:text-green-400 text-xs mt-0.5">
+                      {Math.round((bestWeek.completed / bestWeek.total) * 100)}%
+                    </p>
+                  </div>
+                  <div className="p-2 bg-muted rounded-lg">
+                    <p className="text-muted-foreground text-xs mb-0.5">Trend</p>
+                    <div className="flex items-center gap-1">
+                      {improvement > 0 ? (
+                        <>
+                          <TrendingUp className="w-3 h-3 text-green-500" />
+                          <p className="text-green-600 dark:text-green-400 font-bold text-sm">+{improvement}%</p>
+                        </>
+                      ) : improvement < 0 ? (
+                        <>
+                          <TrendingDown className="w-3 h-3 text-red-500" />
+                          <p className="text-red-600 dark:text-red-400 font-bold text-sm">{improvement}%</p>
+                        </>
+                      ) : (
+                        <>
+                          <span className="text-muted-foreground text-sm">→</span>
+                          <p className="text-muted-foreground font-bold text-sm">Stable</p>
+                        </>
+                      )}
+                    </div>
+                  </div>
+                </div>
+                <div className="mt-2 p-2 bg-green-50 dark:bg-green-950 border border-green-200 dark:border-green-800 rounded-lg">
+                  <p className="text-green-700 dark:text-green-300 text-xs">
+                    📈 {avgCompletion >= 80 ? 'Excellent completion rate!' : avgCompletion >= 60 ? 'Good progress, keep it up!' : 'Keep working on consistency!'}
+                  </p>
+                </div>
+              </>
+            );
+          })()}
+        </Card>
+      </div>
+
+      {/* Charts Row 1.5 - Time Balance and Financial Health */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-2">
         {/* Study vs Skill vs Lifestyle Balance */}
-        <Card className="p-4 border-border bg-card">
-          <h2 className="text-foreground mb-3">Time Balance Analysis</h2>
-          <div className="flex items-center justify-center mb-4">
-            <div className="relative w-40 h-40">
-              <svg className="w-40 h-40 transform -rotate-90">
-                {[
-                  { category: "Study", value: 35, color: "bg-blue-500" },
-                  { category: "Skills", value: 25, color: "bg-violet-500" },
-                  { category: "Lifestyle", value: 20, color: "bg-green-500" },
-                  { category: "Social", value: 12, color: "bg-orange-500" },
-                  { category: "Rest", value: 8, color: "bg-gray-400" }
-                ].map((item, index) => {
+        <Card className="p-3 border-border bg-card">
+          <h2 className="text-foreground mb-1.5 text-lg">Time Balance Analysis</h2>
+          <div className="flex items-center justify-center mb-2">
+            <div className="relative w-32 h-32">
+              <svg className="w-32 h-32 transform -rotate-90">
+                {balanceData.map((item, index) => {
                   const total = 100;
                   const percentage = item.value;
-                  const circumference = 2 * Math.PI * 60;
-                  const offset = [35, 25, 20, 12, 8].slice(0, index).reduce((sum, d) => sum + (d / total) * circumference, 0);
+                  const circumference = 2 * Math.PI * 50;
+                  const offset = balanceData.slice(0, index).reduce((sum, d) => sum + (d.value / total) * circumference, 0);
+                  
+                  // Convert Tailwind color classes to hex for SVG
+                  const colorMap: { [key: string]: string } = {
+                    'bg-blue-500': '#3b82f6',
+                    'bg-violet-500': '#8b5cf6',
+                    'bg-green-500': '#22c55e',
+                    'bg-orange-500': '#f97316',
+                    'bg-gray-400': '#9ca3af'
+                  };
                   
                   return (
                     <circle
                       key={index}
-                      cx="80"
-                      cy="80"
-                      r="60"
-                      stroke={item.color.replace('bg-', '#')}
-                      strokeWidth="20"
+                      cx="64"
+                      cy="64"
+                      r="50"
+                      stroke={colorMap[item.color] || '#9ca3af'}
+                      strokeWidth="16"
                       fill="none"
                       strokeDasharray={`${(percentage / 100) * circumference} ${circumference}`}
                       strokeDashoffset={-offset}
-                      className={item.color}
                     />
                   );
                 })}
               </svg>
               <div className="absolute inset-0 flex items-center justify-center">
                 <div className="text-center">
-                  <p className="text-foreground text-2xl font-bold">100%</p>
+                  <p className="text-foreground text-xl font-bold">
+                    {balanceData.reduce((sum, item) => sum + item.value, 0)}%
+                  </p>
                   <p className="text-muted-foreground text-xs">Time Used</p>
                 </div>
               </div>
             </div>
           </div>
-          <div className="space-y-2">
-            {[
-              { category: "Study", value: 35, color: "bg-blue-500" },
-              { category: "Skills", value: 25, color: "bg-violet-500" },
-              { category: "Lifestyle", value: 20, color: "bg-green-500" },
-              { category: "Social", value: 12, color: "bg-orange-500" },
-              { category: "Rest", value: 8, color: "bg-gray-400" }
-            ].map((item, index) => (
+          <div className="space-y-1.5">
+            {balanceData.map((item, index) => (
               <div key={index} className="flex items-center justify-between">
                 <div className="flex items-center gap-2">
-                  <div className={`w-3 h-3 rounded-full ${item.color}`}></div>
-                  <span className="text-muted-foreground text-sm">{item.category}</span>
+                  <div className={`w-2.5 h-2.5 rounded-full ${item.color}`}></div>
+                  <span className="text-muted-foreground text-xs">{item.category}</span>
                 </div>
-                <span className="text-foreground font-medium">{item.value}%</span>
+                <span className="text-foreground font-medium text-xs">{item.value}%</span>
               </div>
             ))}
           </div>
         </Card>
+
+        {/* Financial Health Summary */}
+        <Card className="p-3 border-border bg-card">
+          <h2 className="text-foreground mb-1.5 text-lg">Financial Health Summary</h2>
+          <div className="space-y-2">
+            <div className="p-2 bg-muted rounded-lg">
+              <div className="flex items-center justify-between mb-1">
+                <span className="text-muted-foreground text-xs">Total Income</span>
+                <span className="text-foreground font-bold text-sm">${totalIncome || 0}</span>
+              </div>
+            </div>
+            <div className="p-2 bg-muted rounded-lg">
+              <div className="flex items-center justify-between mb-1">
+                <span className="text-muted-foreground text-xs">Total Expenses</span>
+                <span className="text-foreground font-bold text-sm">${totalExpenses || 0}</span>
+              </div>
+            </div>
+            <div className="p-2 bg-muted rounded-lg">
+              <div className="flex items-center justify-between mb-1">
+                <span className="text-muted-foreground text-xs">Net Balance</span>
+                <span className={`font-bold text-sm ${(totalIncome || 0) - (totalExpenses || 0) >= 0 ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'}`}>
+                  ${((totalIncome || 0) - (totalExpenses || 0)).toFixed(2)}
+                </span>
+              </div>
+            </div>
+            <div className="p-2 bg-muted rounded-lg">
+              <div className="flex items-center justify-between mb-1">
+                <span className="text-muted-foreground text-xs">Savings Rate</span>
+                <span className="text-foreground font-bold text-sm">{monthlyStats.savingsRate}%</span>
+              </div>
+              <div className="w-full bg-muted-foreground/20 rounded-full h-1.5 mt-1">
+                <div 
+                  className={`h-1.5 rounded-full ${
+                    monthlyStats.savingsRate >= 20 ? 'bg-green-500' :
+                    monthlyStats.savingsRate >= 10 ? 'bg-yellow-500' :
+                    'bg-red-500'
+                  }`}
+                  style={{ width: `${Math.min(monthlyStats.savingsRate, 100)}%` }}
+                ></div>
+              </div>
+            </div>
+          </div>
+          {expenseCategories && expenseCategories.length > 0 && (
+            <div className="mt-2 p-2 bg-blue-50 dark:bg-blue-950 border border-blue-200 dark:border-blue-800 rounded-lg">
+              <p className="text-blue-700 dark:text-blue-300 text-xs font-semibold mb-0.5">💡 Top Category</p>
+              <p className="text-muted-foreground text-xs">
+                {expenseCategories[0]?.category}: ${expenseCategories[0]?.amount} ({expenseCategories[0]?.percentage}%)
+              </p>
+            </div>
+          )}
+        </Card>
       </div>
 
       {/* Charts Row 2 */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-2">
         {/* Academic Performance */}
-        <Card className="p-4 border-border bg-card">
-          <h2 className="text-foreground mb-3">Subject Performance Trends</h2>
-          <div className="space-y-3">
+        <Card className="p-3 border-border bg-card">
+          <h2 className="text-foreground mb-2 text-lg">Subject Performance Trends</h2>
+          <div className="space-y-2">
             {subjectPerformance && subjectPerformance.length > 0 ? (
               subjectPerformance.map((subject: any) => (
                 <div key={subject.id} className="p-3 bg-muted rounded-lg">
@@ -374,14 +491,48 @@ export function Analytics() {
           </div>
         </Card>
 
+        {/* Skills Progress Overview */}
+        <Card className="p-3 border-border bg-card">
+          <h2 className="text-foreground mb-2 text-lg">Skills Progress Overview</h2>
+          <div className="space-y-2">
+            {skills && skills.length > 0 ? (
+              skills.slice(0, 5).map((skill: any) => (
+                <div key={skill.id} className="p-2 bg-muted rounded-lg">
+                  <div className="flex items-center justify-between mb-1">
+                    <span className="text-foreground font-medium text-sm">{skill.name}</span>
+                    <span className="text-foreground font-bold text-sm">{Math.round(skill.progress)}%</span>
+                  </div>
+                  <div className="w-full bg-muted-foreground/20 rounded-full h-1.5">
+                    <div 
+                      className="bg-gradient-to-r from-violet-500 to-purple-500 h-1.5 rounded-full transition-all"
+                      style={{ width: `${skill.progress}%` }}
+                    ></div>
+                  </div>
+                  <div className="flex items-center justify-between mt-1">
+                    <span className="text-muted-foreground text-xs">{skill.milestones?.filter((m: any) => m.completed).length || 0}/{skill.milestones?.length || 0} milestones</span>
+                    <span className="text-muted-foreground text-xs">{skill.timeSpent || '0h'}</span>
+                  </div>
+                </div>
+              ))
+            ) : (
+              <p className="text-muted-foreground text-center py-4 text-sm">No skills added yet</p>
+            )}
+          </div>
+          {skills && skills.length > 5 && (
+            <div className="mt-2 text-center">
+              <p className="text-muted-foreground text-xs">+{skills.length - 5} more skills</p>
+            </div>
+          )}
+        </Card>
+
         {/* Expense Insights */}
-        <Card className="p-4 border-border bg-card">
-          <h2 className="text-foreground mb-3">Expense Insights</h2>
-          <div className="space-y-3 mb-3">
-            {expenseCategories.length > 0 ? (
-              expenseCategories.slice(0, 5).map((expense, index) => (
+        <Card className="p-3 border-border bg-card">
+          <h2 className="text-foreground mb-2 text-lg">Expense Insights</h2>
+          <div className="space-y-2 mb-2">
+            {expenseCategories && expenseCategories.length > 0 ? (
+              expenseCategories.slice(0, 5).map((expense: any, index: number) => (
                 <div key={index}>
-                  <div className="flex items-center justify-between text-sm mb-2">
+                  <div className="flex items-center justify-between text-sm mb-1">
                     <span className="text-muted-foreground">{expense.category}</span>
                     <span className="text-foreground font-medium">${expense.amount} ({expense.percentage}%)</span>
                   </div>
@@ -394,14 +545,16 @@ export function Analytics() {
                 </div>
               ))
             ) : (
-              <p className="text-muted-foreground text-center py-4">No expenses recorded yet</p>
+              <p className="text-muted-foreground text-center py-4 text-sm">No expenses recorded yet</p>
             )}
           </div>
-          {expenseCategories.length > 0 && (
-            <div className="p-3 bg-blue-50 dark:bg-blue-950 border border-blue-200 dark:border-blue-800 rounded-lg">
-              <p className="text-blue-700 dark:text-blue-300 text-sm mb-1">💡 Spending Insight</p>
-              <p className="text-muted-foreground text-sm">
-                Track your expenses regularly to identify saving opportunities.
+          {expenseCategories && expenseCategories.length > 0 && (
+            <div className="p-2 bg-blue-50 dark:bg-blue-950 border border-blue-200 dark:border-blue-800 rounded-lg">
+              <p className="text-blue-700 dark:text-blue-300 text-xs mb-1 font-semibold">💡 Spending Insight</p>
+              <p className="text-muted-foreground text-xs">
+                {expenseCategories[0]?.percentage > 50 
+                  ? `Your top category (${expenseCategories[0].category}) accounts for ${expenseCategories[0].percentage}% of spending. Consider reviewing this category for savings.`
+                  : 'Track your expenses regularly to identify saving opportunities.'}
               </p>
             </div>
           )}

@@ -15,6 +15,7 @@ import monthlyBudgetRoutes from './routes/monthly-budget.routes';
 import onboardingRoutes from './routes/onboarding.routes';
 import analyticsRoutes from './routes/analytics.routes';
 import aiRoutes from './routes/ai.routes';
+import habitRoutes from './routes/habit.routes';
 
 // Load environment variables
 dotenv.config();
@@ -45,6 +46,7 @@ app.use('/api/monthly-budgets', monthlyBudgetRoutes);
 app.use('/api/onboarding', onboardingRoutes);
 app.use('/api/analytics', analyticsRoutes);
 app.use('/api/ai', aiRoutes);
+app.use('/api/habits', habitRoutes);
 
 // Health check route
 app.get('/api/health', (req, res) => {

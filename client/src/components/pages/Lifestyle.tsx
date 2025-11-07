@@ -1,8 +1,8 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Plus, TrendingUp, CheckCircle2, Trash2, Edit } from 'lucide-react';
 import { Card } from '../ui/card';
 import { Button } from '../ui/button';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from '../ui/dialog';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogTrigger, DialogFooter } from '../ui/dialog';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '../ui/alert-dialog';
 import { Input } from '../ui/input';
 import { Label } from '../ui/label';
@@ -11,6 +11,13 @@ import { toast } from 'sonner';
 
 export function Lifestyle() {
   const { habits, toggleHabit, addHabit, deleteHabit, updateHabit } = useApp();
+  
+  // Listen for habit creation events from AI chat (AppContext handles the refresh, but this ensures UI updates)
+  useEffect(() => {
+    // The AppContext already listens to habitCreated events and refreshes habits
+    // This effect is here to ensure the component re-renders when habits change
+    // No additional action needed as habits come from AppContext
+  }, [habits]);
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
@@ -73,9 +80,13 @@ export function Lifestyle() {
   const completedHabits = habits.filter(h => h.completed).length;
   const wellnessScore = Math.round((completedHabits / habits.length) * 100) || 0;
 
-  const handleToggleHabit = (id: string) => {
-    toggleHabit(id);
-    toast.success('Habit updated!');
+  const handleToggleHabit = async (id: string) => {
+    try {
+      await toggleHabit(id);
+      toast.success('Habit updated!');
+    } catch (error) {
+      toast.error('Failed to update habit');
+    }
   };
 
   const handleDeleteClick = (id: string) => {
@@ -147,12 +158,12 @@ export function Lifestyle() {
   ];
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-2">
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-foreground text-3xl mb-1">Lifestyle & Habit Tracker</h1>
-          <p className="text-muted-foreground">Build better habits and maintain a healthy lifestyle</p>
+          <h1 className="text-foreground text-2xl mb-0.5">Lifestyle & Habit Tracker</h1>
+          <p className="text-muted-foreground text-sm">Build better habits and maintain a healthy lifestyle</p>
         </div>
         
         <Dialog open={isAddDialogOpen} onOpenChange={setIsAddDialogOpen}>
@@ -165,6 +176,9 @@ export function Lifestyle() {
           <DialogContent>
             <DialogHeader>
               <DialogTitle>Add New Habit</DialogTitle>
+              <DialogDescription>
+                Create a new habit to track your daily progress and build consistency.
+              </DialogDescription>
             </DialogHeader>
             <div className="space-y-4">
               <div>
@@ -220,87 +234,87 @@ export function Lifestyle() {
       </div>
 
       {/* Wellness Score */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-        <Card className="p-4 border-border bg-gradient-to-br from-green-50 to-emerald-50 dark:from-green-950 dark:to-emerald-950 border-green-200 dark:border-green-800">
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-2">
+        <Card className="p-3 border-border bg-gradient-to-br from-green-50 to-emerald-50 dark:from-green-950 dark:to-emerald-950 border-green-200 dark:border-green-800">
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-green-700 dark:text-green-300 text-sm mb-0.5">Overall Wellness Score</p>
-              <p className="text-foreground text-4xl mb-0.5">{wellnessScore}</p>
-              <div className="flex items-center gap-1 text-green-600 dark:text-green-400 text-sm">
+              <p className="text-green-700 dark:text-green-300 text-xs mb-0.5">Overall Wellness Score</p>
+              <p className="text-foreground text-2xl mb-0.5">{wellnessScore}</p>
+              <div className="flex items-center gap-1 text-green-600 dark:text-green-400 text-xs">
                 <TrendingUp className="w-3 h-3" />
                 <span>Keep it up!</span>
               </div>
             </div>
-            <div className="relative w-14 h-14">
-              <svg className="w-14 h-14 transform -rotate-90">
+            <div className="relative w-10 h-10">
+              <svg className="w-10 h-10 transform -rotate-90">
                 <circle
-                  cx="28"
-                  cy="28"
-                  r="24"
+                  cx="20"
+                  cy="20"
+                  r="16"
                   stroke="currentColor"
-                  strokeWidth="4"
+                  strokeWidth="3"
                   fill="none"
                   className="text-green-200 dark:text-green-900"
                 />
                 <circle
-                  cx="28"
-                  cy="28"
-                  r="24"
+                  cx="20"
+                  cy="20"
+                  r="16"
                   stroke="currentColor"
-                  strokeWidth="4"
+                  strokeWidth="3"
                   fill="none"
-                  strokeDasharray={`${2 * Math.PI * 24}`}
-                  strokeDashoffset={`${2 * Math.PI * 24 * (1 - wellnessScore / 100)}`}
+                  strokeDasharray={`${2 * Math.PI * 16}`}
+                  strokeDashoffset={`${2 * Math.PI * 16 * (1 - wellnessScore / 100)}`}
                   className="text-green-600 dark:text-green-400"
                 />
               </svg>
               <div className="absolute inset-0 flex items-center justify-center">
-                <span className="text-green-700 dark:text-green-300">{wellnessScore}%</span>
+                <span className="text-green-700 dark:text-green-300 text-xs">{wellnessScore}%</span>
               </div>
             </div>
           </div>
         </Card>
 
-        <Card className="p-4 border-border bg-card">
+        <Card className="p-3 border-border bg-card">
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-muted-foreground text-sm mb-0.5">Current Streak</p>
-              <p className="text-foreground text-4xl mb-0.5">{Math.max(...habits.map(h => h.streak))}</p>
-              <p className="text-muted-foreground text-sm">days</p>
+              <p className="text-muted-foreground text-xs mb-0.5">Current Streak</p>
+              <p className="text-foreground text-2xl mb-0.5">{Math.max(...habits.map(h => h.streak))}</p>
+              <p className="text-muted-foreground text-xs">days</p>
             </div>
-            <div className="text-4xl">🔥</div>
+            <div className="text-2xl">🔥</div>
           </div>
         </Card>
 
-        <Card className="p-4 border-border bg-card">
+        <Card className="p-3 border-border bg-card">
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-muted-foreground text-sm mb-0.5">Today's Progress</p>
-              <p className="text-foreground text-4xl mb-0.5">{completedHabits}/{habits.length}</p>
-              <p className="text-muted-foreground text-sm">habits completed</p>
+              <p className="text-muted-foreground text-xs mb-0.5">Today's Progress</p>
+              <p className="text-foreground text-2xl mb-0.5">{completedHabits}/{habits.length}</p>
+              <p className="text-muted-foreground text-xs">habits completed</p>
             </div>
-            <div className="text-4xl">✅</div>
+            <div className="text-2xl">✅</div>
           </div>
         </Card>
       </div>
 
       {/* Habit Grid */}
       <div>
-        <h2 className="text-foreground mb-3">Today's Habits</h2>
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+        <h2 className="text-foreground mb-2 text-lg">Today's Habits</h2>
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-2">
           {habits.length === 0 ? (
-            <Card className="p-8 border-border bg-card col-span-full text-center">
+            <Card className="p-4 border-border bg-card col-span-full text-center">
               <p className="text-muted-foreground">No habits yet. Add your first habit to get started!</p>
             </Card>
           ) : (
             habits.map((habit) => (
               <Card 
                 key={habit.id} 
-                className={`p-4 border-border bg-card hover:shadow-lg transition-all group ${
+                className={`p-3 border-border bg-card hover:shadow-lg transition-all group ${
                   habit.completed ? 'border-green-200 dark:border-green-800 bg-green-50/30 dark:bg-green-950/30' : ''
                 }`}
               >
-                <div className="flex items-start justify-between mb-3">
+                <div className="flex items-start justify-between mb-2">
                   <div className={`w-12 h-12 rounded-lg bg-gradient-to-br ${habit.color} flex items-center justify-center text-white text-2xl`}>
                     {habit.icon}
                   </div>
@@ -323,10 +337,10 @@ export function Lifestyle() {
                     </Button>
                   </div>
                 </div>
-                <h3 className="text-foreground font-semibold mb-1">{habit.name}</h3>
-                <p className="text-muted-foreground text-sm mb-3">{habit.target} • {habit.time}</p>
-                
-                <div className="flex items-center justify-between pt-3 border-t border-border mb-3">
+                <h3 className="text-foreground font-semibold mb-0.5 text-sm">{habit.name}</h3>
+                <p className="text-muted-foreground text-xs mb-2">{habit.target} • {habit.time}</p>
+
+                <div className="flex items-center justify-between pt-2 border-t border-border mb-2">
                   <div className="flex items-center gap-1">
                     <span className="text-orange-500 text-base">🔥</span>
                     <span className="text-sm text-muted-foreground font-medium">{habit.streak} day streak</span>
@@ -363,6 +377,9 @@ export function Lifestyle() {
         <DialogContent>
           <DialogHeader>
             <DialogTitle>Edit Habit</DialogTitle>
+            <DialogDescription>
+              Update your habit details to keep your tracking accurate.
+            </DialogDescription>
           </DialogHeader>
           <div className="space-y-4">
             <div>
@@ -435,17 +452,17 @@ export function Lifestyle() {
       </AlertDialog>
 
       {/* Weekly Overview */}
-      <Card className="p-4 border-border bg-card">
-        <h2 className="text-foreground mb-3">Weekly Progress</h2>
-        <div className="grid grid-cols-7 gap-2">
+      <Card className="p-3 border-border bg-card">
+        <h2 className="text-foreground mb-2 text-lg">Weekly Progress</h2>
+        <div className="grid grid-cols-7 gap-1.5">
           {weeklyProgress.map((day, index) => {
             const percentage = day.total > 0 ? (day.completed / day.total) * 100 : 0;
             return (
               <div key={index} className="text-center">
-                <p className={`text-sm mb-2 ${day.isToday ? 'text-primary font-semibold' : 'text-muted-foreground'}`}>
+                <p className={`text-xs mb-1 ${day.isToday ? 'text-primary font-semibold' : 'text-muted-foreground'}`}>
                   {day.day}
                 </p>
-                <div className={`h-24 bg-muted rounded-lg flex flex-col justify-end overflow-hidden ${
+                <div className={`h-16 bg-muted rounded-lg flex flex-col justify-end overflow-hidden ${
                   day.isToday ? 'ring-2 ring-primary' : ''
                 }`}>
                   <div 
@@ -459,7 +476,7 @@ export function Lifestyle() {
                     style={{ height: `${percentage}%` }}
                   ></div>
                 </div>
-                <p className={`text-sm mt-1 ${day.isToday ? 'text-primary font-semibold' : 'text-foreground'}`}>
+                <p className={`text-xs mt-0.5 ${day.isToday ? 'text-primary font-semibold' : 'text-foreground'}`}>
                   {day.completed}/{day.total}
                 </p>
                 {day.isToday && (

@@ -196,8 +196,8 @@ export function ContextWindow({ open, onOpenChange }: ContextWindowProps) {
 
         <Tabs defaultValue="structured" className="w-full">
           <TabsList className="grid w-full grid-cols-2">
-            <TabsTrigger value="structured">Structured Data</TabsTrigger>
-            <TabsTrigger value="unstructured">Unstructured Data</TabsTrigger>
+            <TabsTrigger value="structured">Basic Info</TabsTrigger>
+            <TabsTrigger value="unstructured">More Info</TabsTrigger>
           </TabsList>
 
           <TabsContent value="structured" className="space-y-4 mt-4">
@@ -443,7 +443,7 @@ export function ContextWindow({ open, onOpenChange }: ContextWindowProps) {
 
           <TabsContent value="unstructured" className="space-y-4 mt-4">
             <div className="space-y-2">
-              <Label>Unstructured Context</Label>
+              <Label>More Info</Label>
               <p className="text-sm text-gray-500">
                 Add notes, preferences, routines, or any other information you want AI to know about you.
               </p>

@@ -45,6 +45,7 @@ model User {
   financeInsights   FinanceInsight[]
   aiPlans           AIPlan[]
   aiFeedbacks       AIFeedback[]
+  habits            Habit[]
 
   @@map("users")
 }
@@ -212,6 +213,24 @@ model Journal {
   user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@map("journals")
+}
+
+model Habit {
+  id                String   @id @default(uuid())
+  userId            String
+  name              String
+  target            String   // e.g., "30 minutes daily"
+  time              String   // e.g., "7:00 AM"
+  streak            Int      @default(0)
+  completed         Boolean  @default(false)
+  color             String   // e.g., "from-blue-500 to-cyan-500"
+  icon              String   // emoji or icon identifier
+  completionHistory Json?    // Array of { date: string, completed: boolean }
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+  user              User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("habits")
 }
 
 model Task {

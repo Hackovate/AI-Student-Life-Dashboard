@@ -510,6 +510,30 @@ export const skillsAPI = {
     });
   },
 
+  // AI Skill Generation
+  getSuggestions: async () => {
+    return apiRequest<{ suggestions: Array<{ name: string; category: string; description: string; reason: string }> }>('/skills/generate/suggestions');
+  },
+
+  generateRoadmap: async (skillName: string) => {
+    return apiRequest<{
+      name: string;
+      category: string;
+      level: string;
+      description: string;
+      goalStatement: string;
+      durationMonths: number;
+      estimatedHours: number;
+      startDate: string;
+      endDate: string;
+      milestones: Array<{ name: string; order: number }>;
+      resources: Array<{ title: string; type: string; url?: string; description?: string }>;
+    }>('/skills/generate/roadmap', {
+      method: 'POST',
+      body: JSON.stringify({ skillName }),
+    });
+  },
+
   completeRecommendation: async (recommendationId: string) => {
     return apiRequest<any>(`/skills/recommendations/${recommendationId}/complete`, {
       method: 'PATCH',
@@ -627,6 +651,116 @@ export const aiChatAPI = {
   },
 };
 
+// Habits API
+export const habitsAPI = {
+  getAll: async () => {
+    return apiRequest<Array<{
+      id: string;
+      name: string;
+      target: string;
+      time: string;
+      streak: number;
+      completed: boolean;
+      color: string;
+      icon: string;
+      completionHistory?: Array<{ date: string; completed: boolean }>;
+      createdAt: string;
+      updatedAt: string;
+    }>>('/habits');
+  },
+  getById: async (id: string) => {
+    return apiRequest<{
+      id: string;
+      name: string;
+      target: string;
+      time: string;
+      streak: number;
+      completed: boolean;
+      color: string;
+      icon: string;
+      completionHistory?: Array<{ date: string; completed: boolean }>;
+      createdAt: string;
+      updatedAt: string;
+    }>(`/habits/${id}`);
+  },
+  create: async (data: {
+    name: string;
+    target: string;
+    time: string;
+    color?: string;
+    icon?: string;
+    streak?: number;
+    completed?: boolean;
+    completionHistory?: Array<{ date: string; completed: boolean }>;
+  }) => {
+    return apiRequest<{
+      id: string;
+      name: string;
+      target: string;
+      time: string;
+      streak: number;
+      completed: boolean;
+      color: string;
+      icon: string;
+      completionHistory?: Array<{ date: string; completed: boolean }>;
+      createdAt: string;
+      updatedAt: string;
+    }>('/habits', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  },
+  update: async (id: string, data: {
+    name?: string;
+    target?: string;
+    time?: string;
+    color?: string;
+    icon?: string;
+    streak?: number;
+    completed?: boolean;
+    completionHistory?: Array<{ date: string; completed: boolean }>;
+  }) => {
+    return apiRequest<{
+      id: string;
+      name: string;
+      target: string;
+      time: string;
+      streak: number;
+      completed: boolean;
+      color: string;
+      icon: string;
+      completionHistory?: Array<{ date: string; completed: boolean }>;
+      createdAt: string;
+      updatedAt: string;
+    }>(`/habits/${id}`, {
+      method: 'PUT',
+      body: JSON.stringify(data),
+    });
+  },
+  toggle: async (id: string) => {
+    return apiRequest<{
+      id: string;
+      name: string;
+      target: string;
+      time: string;
+      streak: number;
+      completed: boolean;
+      color: string;
+      icon: string;
+      completionHistory?: Array<{ date: string; completed: boolean }>;
+      createdAt: string;
+      updatedAt: string;
+    }>(`/habits/${id}/toggle`, {
+      method: 'PATCH',
+    });
+  },
+  delete: async (id: string) => {
+    return apiRequest<{ message: string }>(`/habits/${id}`, {
+      method: 'DELETE',
+    });
+  },
+};
+
 // Analytics API
 export const analyticsAPI = {
   getAll: async () => {
@@ -690,6 +824,13 @@ export const analyticsAPI = {
       }>;
       totalIncome: number;
       totalExpenses: number;
+      timeBalance: {
+        study: number;
+        skills: number;
+        lifestyle: number;
+        social: number;
+        rest: number;
+      };
     }>('/analytics');
   },
 };
@@ -707,4 +848,5 @@ export default {
   courses: coursesAPI,
   onboarding: onboardingAPI,
   analytics: analyticsAPI,
+  habits: habitsAPI,
 };

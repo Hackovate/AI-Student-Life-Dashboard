@@ -3,7 +3,7 @@ import { Plus, TrendingUp, TrendingDown, Wallet, ShoppingBag, Home, Utensils, Gr
 import { Card } from '../ui/card';
 import { Button } from '../ui/button';
 import { Progress } from '../ui/progress';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '../ui/dialog';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '../ui/dialog';
 import { Input } from '../ui/input';
 import { Label } from '../ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../ui/select';
@@ -72,6 +72,17 @@ export function Finances() {
   // Load data on component mount
   useEffect(() => {
     loadFinanceData();
+
+    // Listen for finance creation events from AI chat
+    const handleFinanceCreated = () => {
+      loadFinanceData();
+    };
+
+    window.addEventListener('financeCreated', handleFinanceCreated);
+
+    return () => {
+      window.removeEventListener('financeCreated', handleFinanceCreated);
+    };
   }, []);
 
   const loadFinanceData = async () => {
@@ -99,12 +110,23 @@ export function Finances() {
 
   const expenseCategories = [
     { name: 'Food', icon: Utensils, color: 'from-orange-500 to-red-500' },
-    { name: 'Education', icon: GraduationCap, color: 'from-blue-500 to-cyan-500' },
+    { name: 'Transport', icon: Wallet, color: 'from-blue-500 to-cyan-500' },
+    { name: 'Entertainment', icon: ShoppingBag, color: 'from-violet-500 to-purple-500' },
     { name: 'Shopping', icon: ShoppingBag, color: 'from-violet-500 to-purple-500' },
-    { name: 'Housing', icon: Home, color: 'from-green-500 to-emerald-500' },
+    { name: 'Bills', icon: Home, color: 'from-green-500 to-emerald-500' },
+    { name: 'Education', icon: GraduationCap, color: 'from-blue-500 to-cyan-500' },
     { name: 'Health', icon: Heart, color: 'from-pink-500 to-rose-500' },
+    { name: 'Housing', icon: Home, color: 'from-green-500 to-emerald-500' },
     { name: 'Other', icon: Wallet, color: 'from-gray-500 to-slate-500' },
   ];
+
+  // Helper function to get category icon and color (with fallback)
+  const getCategoryInfo = (categoryName: string) => {
+    const found = expenseCategories.find(cat => cat.name === categoryName);
+    if (found) return found;
+    // Fallback for unknown categories
+    return { name: categoryName, icon: Wallet, color: 'from-gray-500 to-slate-500' };
+  };
 
   const incomeCategories = [
     { name: 'Salary', icon: Wallet, color: 'from-green-500 to-emerald-500' },
@@ -152,16 +174,20 @@ export function Finances() {
   const budgetProgress = monthlyBudget > 0 ? (totalExpenses / monthlyBudget) * 100 : 0;
 
   // Calculate category breakdown from API data
-  const categoryBreakdownData = expenseCategories.map(cat => {
-    const total = categoryBreakdown[cat.name] || 0;
-    return {
-      category: cat.name,
-      amount: total,
-      percentage: totalExpenses > 0 ? Math.round((total / totalExpenses) * 100) : 0,
-      icon: cat.icon,
-      color: cat.color,
-    };
-  }).filter(c => c.amount > 0);
+  // Use all categories from API response, not just hardcoded ones
+  const categoryBreakdownData = Object.entries(categoryBreakdown)
+    .map(([categoryName, total]) => {
+      const categoryInfo = getCategoryInfo(categoryName);
+      return {
+        category: categoryName,
+        amount: total as number,
+        percentage: totalExpenses > 0 ? Math.round(((total as number) / totalExpenses) * 100) : 0,
+        icon: categoryInfo.icon,
+        color: categoryInfo.color,
+      };
+    })
+    .filter(c => c.amount > 0)
+    .sort((a, b) => b.amount - a.amount); // Sort by amount descending
 
   const handleAddExpense = async () => {
     if (!newExpense.description || !newExpense.amount) {
@@ -336,12 +362,12 @@ export function Finances() {
   };
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-2">
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-foreground text-3xl mb-1">Expense & Savings Tracker</h1>
-          <p className="text-muted-foreground">Manage your finances and reach your savings goals</p>
+          <h1 className="text-foreground text-2xl mb-0.5">Expense & Savings Tracker</h1>
+          <p className="text-muted-foreground text-sm">Manage your finances and reach your savings goals</p>
         </div>
         <div className="flex gap-2">
           <Button variant="outline" className="gap-2" onClick={() => setIsSavingsGoalDialogOpen(true)}>
@@ -366,6 +392,9 @@ export function Finances() {
         <DialogContent>
           <DialogHeader>
             <DialogTitle>Add New Transaction</DialogTitle>
+            <DialogDescription>
+              Record a new income, expense, or savings transaction to track your finances.
+            </DialogDescription>
           </DialogHeader>
             <div className="space-y-4">
               <div>
@@ -497,6 +526,9 @@ export function Finances() {
         <DialogContent>
           <DialogHeader>
             <DialogTitle>Add Savings Goal</DialogTitle>
+            <DialogDescription>
+              Set a new savings goal to track your progress towards financial targets.
+            </DialogDescription>
           </DialogHeader>
           <div className="space-y-4">
             <div>
@@ -574,6 +606,9 @@ export function Finances() {
         <DialogContent>
           <DialogHeader>
             <DialogTitle>Add Monthly Budget</DialogTitle>
+            <DialogDescription>
+              Create a monthly budget to help manage your spending and stay on track.
+            </DialogDescription>
           </DialogHeader>
           <div className="space-y-4">
             <div>
@@ -642,10 +677,13 @@ export function Finances() {
         <DialogContent>
           <DialogHeader>
             <DialogTitle>Delete Transaction</DialogTitle>
+            <DialogDescription>
+              Are you sure you want to delete this transaction? This action cannot be undone.
+            </DialogDescription>
           </DialogHeader>
           <div className="space-y-4">
             <p className="text-muted-foreground">
-              Are you sure you want to delete this transaction?
+              Deleting this transaction will permanently remove it from your records.
             </p>
             {transactionToDelete && (
               <div className="bg-muted p-4 rounded-lg space-y-2">
@@ -706,12 +744,12 @@ export function Finances() {
       </Dialog>
 
       {/* Top Stats */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
-        <Card className="p-4 border-border bg-card h-fit">
-          <div className="flex items-center justify-between mb-3">
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-2">
+        <Card className="p-3 border-border bg-card h-fit">
+          <div className="flex items-center justify-between mb-2">
             <div>
-              <p className="text-muted-foreground text-sm mb-0.5">Total Income</p>
-              <p className="text-foreground text-3xl">{totalIncome.toFixed(0)} BDT</p>
+              <p className="text-muted-foreground text-xs mb-0.5">Total Income</p>
+              <p className="text-foreground text-2xl">{totalIncome.toFixed(0)} BDT</p>
               <p className="text-green-600 dark:text-green-400 text-sm mt-0.5">This month</p>
             </div>
             <div className="w-10 h-10 rounded-lg bg-gradient-to-br from-green-500 to-emerald-500 flex items-center justify-center">
@@ -720,31 +758,31 @@ export function Finances() {
           </div>
         </Card>
 
-        <Card className="p-4 border-border bg-card h-fit">
-          <div className="flex items-center justify-between mb-3">
+        <Card className="p-3 border-border bg-card h-fit">
+          <div className="flex items-center justify-between mb-2">
             <div>
-              <p className="text-muted-foreground text-sm mb-0.5">Total Expenses</p>
-              <p className="text-foreground text-3xl">{totalExpenses.toFixed(0)} BDT</p>
-              <p className="text-muted-foreground text-sm mt-0.5">of {monthlyBudget} BDT budget</p>
+              <p className="text-muted-foreground text-xs mb-0.5">Total Expenses</p>
+              <p className="text-foreground text-2xl">{totalExpenses.toFixed(0)} BDT</p>
+              <p className="text-muted-foreground text-xs mt-0.5">of {monthlyBudget} BDT budget</p>
             </div>
-            <div className="w-10 h-10 rounded-lg bg-gradient-to-br from-orange-500 to-red-500 flex items-center justify-center">
-              <Wallet className="w-5 h-5 text-white" />
+            <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-orange-500 to-red-500 flex items-center justify-center">
+              <Wallet className="w-4 h-4 text-white" />
             </div>
           </div>
           <div>
-            <Progress value={budgetProgress} className="h-2" />
-            <p className={`text-sm mt-1 ${budgetProgress > 80 ? 'text-destructive' : 'text-muted-foreground'}`}>
+            <Progress value={budgetProgress} className="h-1.5" />
+            <p className={`text-xs mt-0.5 ${budgetProgress > 80 ? 'text-destructive' : 'text-muted-foreground'}`}>
               {budgetProgress > 100 ? 'Over budget!' : `${Math.round(budgetProgress)}% used`}
             </p>
           </div>
         </Card>
 
-        <Card className="p-4 border-border bg-card h-fit">
+        <Card className="p-3 border-border bg-card h-fit">
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-muted-foreground text-sm mb-0.5">Available Balance</p>
-              <p className="text-foreground text-3xl">{actualBalance.toFixed(0)} BDT</p>
-              <div className={`flex items-center gap-1 text-sm mt-0.5 ${
+              <p className="text-muted-foreground text-xs mb-0.5">Available Balance</p>
+              <p className="text-foreground text-2xl">{actualBalance.toFixed(0)} BDT</p>
+              <div className={`flex items-center gap-1 text-xs mt-0.5 ${
                 actualBalance >= 0 
                   ? 'text-green-600 dark:text-green-400' 
                   : 'text-red-600 dark:text-red-400'
@@ -768,7 +806,7 @@ export function Finances() {
           </div>
         </Card>
 
-        <Card className="p-4 border-border bg-gradient-to-r from-violet-50 to-purple-50 dark:from-violet-950 dark:to-purple-950 border-primary/20 h-fit">
+        <Card className="p-3 border-border bg-gradient-to-r from-violet-50 to-purple-50 dark:from-violet-950 dark:to-purple-950 border-primary/20 h-fit">
           <div 
             className="flex items-center justify-between cursor-pointer select-none"
             onClick={() => setIsGoalsExpanded(!isGoalsExpanded)}
@@ -864,11 +902,11 @@ export function Finances() {
       </div>
 
       {/* Category Breakdown & Recent Transactions */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-2">
         {/* Spending by Category */}
-        <Card className="p-4 border-border bg-card">
-          <h2 className="text-foreground mb-3">Monthly Spending by Category</h2>
-          <div className="space-y-3">
+        <Card className="p-3 border-border bg-card">
+          <h2 className="text-foreground mb-2 text-lg">Monthly Spending by Category</h2>
+          <div className="space-y-2">
             {categoryBreakdownData.length === 0 ? (
               <p className="text-muted-foreground text-center py-4">No expenses this month</p>
             ) : (
@@ -899,11 +937,11 @@ export function Finances() {
         </Card>
 
         {/* Recent Transactions */}
-        <Card className="p-4 border-border bg-card">
-          <div className="flex items-center justify-between mb-3">
-            <h2 className="text-foreground">Recent Transactions</h2>
+        <Card className="p-3 border-border bg-card">
+          <div className="flex items-center justify-between mb-2">
+            <h2 className="text-foreground text-lg">Recent Transactions</h2>
           </div>
-          <div className="space-y-2 max-h-[300px] overflow-y-auto">
+          <div className="space-y-1.5 max-h-[300px] overflow-y-auto">
             {expenses.length === 0 ? (
               <p className="text-muted-foreground text-center py-4">No transactions yet</p>
             ) : (
@@ -956,34 +994,6 @@ export function Finances() {
           </div>
         </Card>
       </div>
-
-      {/* Financial Tips */}
-      <Card className="p-4 border-border bg-gradient-to-r from-blue-50 to-cyan-50 dark:from-blue-950 dark:to-cyan-950 border-blue-200 dark:border-blue-800">
-        <div className="flex items-start gap-3">
-          <div className="text-3xl">💡</div>
-          <div className="flex-1">
-            <h3 className="text-foreground mb-1.5">Smart Financial Insight</h3>
-            <p className="text-foreground/80 mb-2 text-sm">
-              {(() => {
-                if (actualBalance < 0) {
-                  return "⚠️ Your expenses exceed your income. Consider reducing spending or finding additional income sources.";
-                } else if (budgetProgress > 80) {
-                  return "You're close to your budget limit. Review your spending categories to identify areas where you can cut back.";
-                } else if (netSavings > savingsGoal * 0.5) {
-                  return `🎉 Excellent progress! You're ${Math.round(savingsProgress)}% toward your savings goal. Keep up the great work!`;
-                } else if (totalIncome > 0 && totalExpenses === 0) {
-                  return "Great start! Now track your expenses to understand where your money goes.";
-                } else if (totalIncome === 0 && totalExpenses > 0) {
-                  return "Add your income sources to get a complete picture of your finances.";
-                } else {
-                  return "Great job managing your finances! Keep tracking both income and expenses to maintain this healthy financial habit.";
-                }
-              })()}
-            </p>
-            <Button variant="link" className="p-0 h-auto text-primary">Learn more →</Button>
-          </div>
-        </div>
-      </Card>
     </div>
   );
 }

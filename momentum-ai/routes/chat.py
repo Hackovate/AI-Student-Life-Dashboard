@@ -72,8 +72,15 @@ async def chat(req: ChatRequest):
         first_name = req.user_name.split()[0] if req.user_name else "there"
         personalization_note = f"\n\nPERSONALIZATION: The user's name is {req.user_name}. Always use their name naturally in conversation to make it feel personal and friendly, like ChatGPT does. For example: 'Hi {first_name}!' or 'That's great, {first_name}!'" if req.user_name else ""
         
+        # Get current date for prompt
+        current_date_iso = datetime.now().strftime('%Y-%m-%d')
+        current_date_readable = datetime.now().strftime('%B %d, %Y')
+        current_day = datetime.now().strftime('%A')
+        
         # Optimized prompt - concise and direct for faster responses
         prompt = f"""Momentum AI Assistant. {name_greeting} Be friendly and concise.
+
+CURRENT DATE: Today is {current_date_readable} ({current_day}). The date in YYYY-MM-DD format is {current_date_iso}.
 
 RULES:
 - Keep responses SHORT (2-3 sentences max unless complex question)
@@ -84,6 +91,23 @@ ACTIONS (include in Actions: JSON array):
 - update_user: {{"type":"update_user","data":{{"firstName":"..."}}}}
 - add_course: {{"type":"add_course","data":{{"name":"...","code":"...","credits":3}}}}
 - add_skill: {{"type":"add_skill","data":{{"name":"...","category":"Technical|Creative|Soft Skills|Business|Language|Other","level":"beginner|intermediate|advanced|expert","description":"...","goalStatement":"...","durationMonths":N,"estimatedHours":N,"startDate":"YYYY-MM-DD","endDate":"YYYY-MM-DD","milestones":[{{"name":"...","order":0}}],"resources":[{{"title":"...","type":"link|video|note","url":"...","description":"..."}}]}}}}
+- add_expense: {{"type":"add_expense","data":{{"amount":N,"category":"Food|Transport|Entertainment|Shopping|Bills|Education|Health|Other","description":"...","date":"YYYY-MM-DD","paymentMethod":"cash|card|digital|bank_transfer","recurring":false,"frequency":"weekly|monthly|yearly"}}}}
+- update_expense: {{"type":"update_expense","data":{{"finance_id":"..." OR "description":"..." (find by description if ID not provided),"amount":N,"category":"Food|Transport|Entertainment|Shopping|Bills|Education|Health|Other","description":"...","date":"YYYY-MM-DD"}}}}
+- add_income: {{"type":"add_income","data":{{"amount":N,"category":"Salary|Freelance|Gift|Other","description":"...","date":"YYYY-MM-DD","paymentMethod":"cash|card|digital|bank_transfer"}}}}
+- update_income: {{"type":"update_income","data":{{"finance_id":"..." OR "description":"..." (find by description if ID not provided),"amount":N,"category":"Salary|Freelance|Gift|Other","description":"...","date":"YYYY-MM-DD"}}}}
+- add_savings_goal: {{"type":"add_savings_goal","data":{{"title":"...","targetAmount":N,"category":"emergency|vacation|education|investment|other","dueDate":"YYYY-MM-DD","description":"...","priority":"high|medium|low"}}}}
+- update_savings_goal: {{"type":"update_savings_goal","data":{{"goal_id":"...","title":"...","targetAmount":N,"currentAmount":N,"dueDate":"YYYY-MM-DD","status":"active|completed|cancelled"}}}}
+- delete_finance: {{"type":"delete_finance","data":{{"finance_id":"..." OR "description":"..." (find by description if ID not provided)}}}}
+- add_journal: {{"type":"add_journal","data":{{"title":"...","content":"...","mood":"happy|sad|neutral|anxious|excited|tired|energetic","tags":["tag1","tag2"],"date":"YYYY-MM-DD"}}}}
+- update_journal: {{"type":"update_journal","data":{{"journal_id":"...","title":"...","content":"...","mood":"...","tags":["..."]}}}}
+- delete_journal: {{"type":"delete_journal","data":{{"journal_id":"..."}}}}
+- add_lifestyle: {{"type":"add_lifestyle","data":{{"date":"YYYY-MM-DD","sleepHours":N,"exerciseMinutes":N,"waterIntake":N,"mealQuality":"excellent|good|fair|poor","stressLevel":1-10,"notes":"..."}}}}
+- update_lifestyle: {{"type":"update_lifestyle","data":{{"lifestyle_id":"...","sleepHours":N,"exerciseMinutes":N,"waterIntake":N,"mealQuality":"...","stressLevel":N,"notes":"..."}}}}
+- delete_lifestyle: {{"type":"delete_lifestyle","data":{{"lifestyle_id":"..."}}}}
+- add_habit: {{"type":"add_habit","data":{{"name":"...","target":"...","time":"HH:MM","color":"from-blue-500 to-cyan-500","icon":"..."}}}}
+- update_habit: {{"type":"update_habit","data":{{"habit_id":"...","name":"...","target":"...","time":"HH:MM","color":"...","icon":"..."}}}}
+- delete_habit: {{"type":"delete_habit","data":{{"habit_id":"..."}}}}
+- toggle_habit: {{"type":"toggle_habit","data":{{"habit_id":"..."}}}}
 
 SKILL CREATION RULES:
 - "I know X" → Simple: Create immediately with name, category, level only
@@ -102,6 +126,8 @@ SKILL CREATION RULES:
   - durationMonths (from user: "2 months", "1 month", etc.)
   - estimatedHours (calculate: hours/week × weeks)
   - startDate (from user: "Nov 9", "10 nov", etc. - convert to YYYY-MM-DD)
+    * IMPORTANT: If user says "today" or "now", use {current_date_iso}
+    * If user says "next week" or similar, calculate from {current_date_iso}
   - endDate (calculate: startDate + durationMonths)
   - description (brief, from goal)
   - goalStatement (specific learning goal)
@@ -115,6 +141,54 @@ DUPLICATE PREVENTION:
 - Check "Current Skills" in context - if skill name already exists, use update_skill action instead of add_skill
 - NEVER create duplicate skills with the same name
 - If user mentions learning a skill that exists → Update the existing skill with new information
+
+FINANCE RULES:
+- For expenses: Extract amount, category, description, date from user message
+  * IMPORTANT: If user doesn't specify a date, ALWAYS use today's date ({current_date_iso})
+  * Only use a different date if user explicitly mentions it (e.g., "yesterday", "last week", specific date)
+  * ALWAYS infer category from description (e.g., "fuchka", "food", "groceries" → "Food"; "bus", "taxi", "uber" → "Transport"; "movie", "netflix" → "Entertainment"; "shirt", "shopping" → "Shopping"; "rent", "electricity" → "Bills"; "book", "course" → "Education"; "medicine", "doctor" → "Health")
+  * If category cannot be inferred, use "Other"
+  * Valid categories: Food, Transport, Entertainment, Shopping, Bills, Education, Health, Other
+- For income: Extract amount, category, description, date from user message
+  * IMPORTANT: If user doesn't specify a date, ALWAYS use today's date ({current_date_iso})
+  * Only use a different date if user explicitly mentions it (e.g., "yesterday", "last week", specific date)
+  * Valid categories: Salary, Freelance, Gift, Other
+- For updating expenses/income: Use update_expense or update_income action
+  * You can find expenses by description (e.g., "internet utilities", "fuchka") - check "Recent Finances" in context
+  * If user says "change category of X" or "fix category of X", use update_expense with description to find it
+  * You can update: amount, category, description, date
+- For deleting expenses/income: Use delete_finance action
+  * You can find by description (e.g., "delete internet utilities") - check "Recent Finances" in context
+  * If description matches multiple, use the most recent one
+- For savings goals: Extract title, target amount, category, due date, priority
+  * IMPORTANT: For due dates, use future dates. If user doesn't specify, ask for a target date.
+- If user asks "How can I save money?" or "Show me spending analysis" → Use analyze_finances (return analysis as text, not action)
+- Calculate savings suggestions based on income vs expenses ratio
+- Identify top spending categories and suggest cuts
+
+JOURNAL & LIFESTYLE RULES:
+- For journal entries: Extract title, content, mood, tags, date from user message
+  * IMPORTANT: If user doesn't specify a date, ALWAYS use today's date ({current_date_iso})
+  * Only use a different date if user explicitly mentions it (e.g., "yesterday", "last week", specific date)
+  * Current date is {current_date_readable} ({current_day})
+- For lifestyle tracking: Extract sleep hours, exercise minutes, water intake, meal quality, stress level, date
+  * IMPORTANT: If user doesn't specify a date, ALWAYS use today's date ({current_date_iso})
+- If user asks "How's my mood been?" or "Am I sleeping enough?" → Use analyze_lifestyle (return analysis as text, not action)
+- Correlate lifestyle factors (sleep, exercise) with mood/stress from journal entries
+- Provide actionable recommendations based on patterns
+
+HABIT RULES:
+- For habits: Extract name, target (e.g., "30 minutes daily"), time (e.g., "7:00 AM"), color, icon
+- Support any type of habit (exercise, reading, meditation, etc.)
+- For toggle: Mark habit as completed/incomplete for today
+- If user says "I completed [habit name]" → Use toggle_habit action
+
+ANALYSIS MODE:
+- When user asks analysis questions (e.g., "How am I spending?", "How's my mood?", "Am I consistent with habits?"):
+  * DO NOT create actions
+  * Analyze the data from context
+  * Return insights as natural language response
+  * Provide specific, actionable suggestions
 
 Context: {full_context}
 History: {conversation_str}
@@ -200,7 +274,7 @@ Assistant:"""
                     print(f"Actions string (first 500 chars): {match_str[:500] if len(match_str) > 500 else match_str}")
                 except:
                     pass
-                import traceback
+                # traceback is already imported at top of file
                 traceback.print_exc()
         
         # Also check if user message mentions updates and try to extract them (fallback if AI doesn't return actions)

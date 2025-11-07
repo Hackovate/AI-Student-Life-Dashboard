@@ -1,10 +1,11 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Send, Paperclip, Sparkles, CheckCircle2, Calendar, GraduationCap, Wallet, BookOpen, X, Loader2, Trash2 } from 'lucide-react';
+import { Send, Paperclip, Sparkles, CheckCircle2, Calendar, GraduationCap, Wallet, BookOpen, X, Loader2, Trash2, AlertTriangle } from 'lucide-react';
 import { Card } from '../ui/card';
 import { Button } from '../ui/button';
 import { Badge } from '../ui/badge';
 import { Textarea } from '../ui/textarea';
 import { ScrollArea } from '../ui/scroll-area';
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '../ui/alert-dialog';
 import { aiChatAPI } from '@/lib/api';
 import { toast } from 'sonner';
 import { ContextWindow } from '../modals/ContextWindow';
@@ -137,6 +138,7 @@ export function PersonalizedAssistant() {
   const [messages, setMessages] = useState<Message[]>(getInitialMessages);
   const [loading, setLoading] = useState(false);
   const [contextWindowOpen, setContextWindowOpen] = useState(false);
+  const [clearChatDialogOpen, setClearChatDialogOpen] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const scrollAreaRef = useRef<HTMLDivElement>(null);
 
@@ -157,17 +159,20 @@ export function PersonalizedAssistant() {
   };
 
   const handleClearChat = () => {
-    if (confirm('Are you sure you want to clear the chat history? This cannot be undone.')) {
-      const initialMessage: Message = {
-        id: 1,
-        type: 'ai',
-        content: "Hello! I'm your AI Student Life Assistant. I can help you manage tasks, plan your day, track expenses, and much more. How can I assist you today?",
-        timestamp: new Date().toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })
-      };
-      setMessages([initialMessage]);
-      localStorage.removeItem(CHAT_STORAGE_KEY);
-      toast.success('Chat history cleared');
-    }
+    setClearChatDialogOpen(true);
+  };
+
+  const confirmClearChat = () => {
+    const initialMessage: Message = {
+      id: 1,
+      type: 'ai',
+      content: "Hello! I'm your AI Student Life Assistant. I can help you manage tasks, plan your day, track expenses, and much more. How can I assist you today?",
+      timestamp: new Date().toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })
+    };
+    setMessages([initialMessage]);
+    localStorage.removeItem(CHAT_STORAGE_KEY);
+    setClearChatDialogOpen(false);
+    toast.success('Chat history cleared');
   };
 
   const handleSendMessage = async () => {
@@ -209,27 +214,112 @@ export function PersonalizedAssistant() {
 
         // Check action results from backend (more reliable than checking actions)
         if (response.data.actionResults && response.data.actionResults.length > 0) {
-          const skillResults = response.data.actionResults.filter((result: any) => result.type === 'add_skill');
-          
+          // Process skill results
+          const skillResults = response.data.actionResults.filter((result: any) => result.type === 'add_skill' || result.type === 'update_skill');
           if (skillResults.length > 0) {
             const successfulSkills = skillResults.filter((r: any) => r.success);
             const failedSkills = skillResults.filter((r: any) => !r.success);
-
-            // Dispatch custom event to notify Skills page for successful creations
             if (successfulSkills.length > 0) {
               window.dispatchEvent(new CustomEvent('skillCreated', { 
                 detail: { skills: successfulSkills.map((r: any) => r.data?.skillName || 'skill') } 
               }));
-              
-              // Show success notifications
               successfulSkills.forEach((result: any) => {
-                toast.success(`Skill '${result.data?.skillName || 'skill'}' created successfully!`);
+                toast.success(`Skill '${result.data?.skillName || 'skill'}' ${result.type === 'update_skill' ? 'updated' : 'created'} successfully!`);
               });
             }
-
-            // Show error notifications for failed creations
             failedSkills.forEach((result: any) => {
-              toast.error(`Failed to create skill: ${result.error || 'Unknown error'}`);
+              toast.error(`Failed to ${result.type === 'update_skill' ? 'update' : 'create'} skill: ${result.error || 'Unknown error'}`);
+            });
+          }
+
+          // Process finance results
+          const financeResults = response.data.actionResults.filter((result: any) => 
+            ['add_expense', 'add_income', 'add_savings_goal', 'update_savings_goal', 'delete_finance'].includes(result.type)
+          );
+          if (financeResults.length > 0) {
+            const successful = financeResults.filter((r: any) => r.success);
+            const failed = financeResults.filter((r: any) => !r.success);
+            if (successful.length > 0) {
+              window.dispatchEvent(new CustomEvent('financeCreated', { 
+                detail: { actions: successful.map((r: any) => r.type) } 
+              }));
+              successful.forEach((result: any) => {
+                const actionLabels: Record<string, string> = {
+                  'add_expense': 'Expense',
+                  'add_income': 'Income',
+                  'add_savings_goal': 'Savings goal',
+                  'update_savings_goal': 'Savings goal',
+                  'delete_finance': 'Transaction'
+                };
+                toast.success(`${actionLabels[result.type] || 'Finance'} ${result.type.includes('delete') ? 'deleted' : result.type.includes('update') ? 'updated' : 'added'} successfully!`);
+              });
+            }
+            failed.forEach((result: any) => {
+              toast.error(`Failed to process finance action: ${result.error || 'Unknown error'}`);
+            });
+          }
+
+          // Process journal results
+          const journalResults = response.data.actionResults.filter((result: any) => 
+            ['add_journal', 'update_journal', 'delete_journal'].includes(result.type)
+          );
+          if (journalResults.length > 0) {
+            const successful = journalResults.filter((r: any) => r.success);
+            const failed = journalResults.filter((r: any) => !r.success);
+            if (successful.length > 0) {
+              window.dispatchEvent(new CustomEvent('journalCreated', { 
+                detail: { actions: successful.map((r: any) => r.type) } 
+              }));
+              successful.forEach((result: any) => {
+                toast.success(`Journal entry ${result.type.includes('delete') ? 'deleted' : result.type.includes('update') ? 'updated' : 'added'} successfully!`);
+              });
+            }
+            failed.forEach((result: any) => {
+              toast.error(`Failed to process journal action: ${result.error || 'Unknown error'}`);
+            });
+          }
+
+          // Process lifestyle results
+          const lifestyleResults = response.data.actionResults.filter((result: any) => 
+            ['add_lifestyle', 'update_lifestyle', 'delete_lifestyle'].includes(result.type)
+          );
+          if (lifestyleResults.length > 0) {
+            const successful = lifestyleResults.filter((r: any) => r.success);
+            const failed = lifestyleResults.filter((r: any) => !r.success);
+            if (successful.length > 0) {
+              window.dispatchEvent(new CustomEvent('lifestyleCreated', { 
+                detail: { actions: successful.map((r: any) => r.type) } 
+              }));
+              successful.forEach((result: any) => {
+                toast.success(`Lifestyle record ${result.type.includes('delete') ? 'deleted' : result.type.includes('update') ? 'updated' : 'added'} successfully!`);
+              });
+            }
+            failed.forEach((result: any) => {
+              toast.error(`Failed to process lifestyle action: ${result.error || 'Unknown error'}`);
+            });
+          }
+
+          // Process habit results
+          const habitResults = response.data.actionResults.filter((result: any) => 
+            ['add_habit', 'update_habit', 'delete_habit', 'toggle_habit'].includes(result.type)
+          );
+          if (habitResults.length > 0) {
+            const successful = habitResults.filter((r: any) => r.success);
+            const failed = habitResults.filter((r: any) => !r.success);
+            if (successful.length > 0) {
+              window.dispatchEvent(new CustomEvent('habitCreated', { 
+                detail: { actions: successful.map((r: any) => r.type) } 
+              }));
+              successful.forEach((result: any) => {
+                if (result.type === 'toggle_habit') {
+                  toast.success(`Habit marked as ${result.data?.completed ? 'completed' : 'incomplete'}!`);
+                } else {
+                  toast.success(`Habit ${result.type.includes('delete') ? 'deleted' : result.type.includes('update') ? 'updated' : 'added'} successfully!`);
+                }
+              });
+            }
+            failed.forEach((result: any) => {
+              toast.error(`Failed to process habit action: ${result.error || 'Unknown error'}`);
             });
           }
         } else if (response.data.actions && response.data.actions.length > 0) {
@@ -318,17 +408,17 @@ export function PersonalizedAssistant() {
   };
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-2">
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <div className="flex items-center gap-3 mb-1">
-            <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-violet-500 to-purple-500 flex items-center justify-center">
-              <Sparkles className="w-5 h-5 text-white" />
+          <div className="flex items-center gap-2 mb-0.5">
+            <div className="w-8 h-8 rounded-xl bg-gradient-to-br from-violet-500 to-purple-500 flex items-center justify-center">
+              <Sparkles className="w-4 h-4 text-white" />
             </div>
-            <h1 className="text-gray-900">Personalized Assistant</h1>
+            <h1 className="text-gray-900 text-2xl">Personalized Assistant</h1>
           </div>
-          <p className="text-gray-600">Your AI-powered companion for managing student life</p>
+          <p className="text-gray-600 text-sm">Your AI-powered companion for managing student life</p>
         </div>
         <div className="flex items-center gap-2">
           <Button
@@ -360,13 +450,13 @@ export function PersonalizedAssistant() {
       </div>
 
       {/* Main Chat Interface */}
-      <div className={`grid gap-3 ${showLinkedItems ? 'grid-cols-1 lg:grid-cols-3' : 'grid-cols-1'}`}>
+      <div className={`grid gap-2 ${showLinkedItems ? 'grid-cols-1 lg:grid-cols-3' : 'grid-cols-1'}`}>
         {/* Chat Area */}
         <Card className={`${showLinkedItems ? 'lg:col-span-2' : ''} p-0 border-gray-200 flex flex-col`} style={{ height: '550px' }}>
           {/* Messages */}
           <div className="flex-1 overflow-hidden">
             <ScrollArea className="h-full">
-              <div className="p-5 space-y-4">
+              <div className="p-4 space-y-3">
                 {messages.map((msg) => (
                   <MessageBubble key={msg.id} msg={msg} />
                 ))}
@@ -394,7 +484,7 @@ export function PersonalizedAssistant() {
           </div>
 
           {/* Input Area */}
-          <div className="p-4 border-t border-gray-200 bg-white">
+          <div className="p-3 border-t border-gray-200 bg-white">
             <div className="flex items-end gap-2">
               <Button
                 variant="outline"
@@ -567,6 +657,37 @@ export function PersonalizedAssistant() {
         open={contextWindowOpen}
         onOpenChange={setContextWindowOpen}
       />
+
+      {/* Clear Chat Alert Dialog */}
+      <AlertDialog open={clearChatDialogOpen} onOpenChange={setClearChatDialogOpen}>
+        <AlertDialogContent className="sm:max-w-[425px]">
+          <AlertDialogHeader>
+            <div className="flex items-center gap-3 mb-2">
+              <div className="w-10 h-10 rounded-full bg-destructive/10 flex items-center justify-center flex-shrink-0">
+                <AlertTriangle className="w-5 h-5 text-destructive" />
+              </div>
+              <AlertDialogTitle className="text-xl">Clear Chat History?</AlertDialogTitle>
+            </div>
+            <AlertDialogDescription className="text-base pt-2">
+              Are you sure you want to clear all chat messages? This action cannot be undone and you will lose all conversation history.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <div className="bg-muted/50 rounded-lg p-4 mt-4 border border-destructive/20">
+            <p className="text-sm text-muted-foreground">
+              <strong className="text-foreground">Note:</strong> This will only clear your local chat history. Your AI context and saved data will remain intact.
+            </p>
+          </div>
+          <AlertDialogFooter className="mt-6">
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={confirmClearChat}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              Clear Chat
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

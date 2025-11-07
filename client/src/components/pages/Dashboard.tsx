@@ -4,7 +4,7 @@ import { StatCard } from '../StatCard';
 import { Card } from '../ui/card';
 import { Button } from '../ui/button';
 import { Badge } from '../ui/badge';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '../ui/dialog';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '../ui/dialog';
 import { Input } from '../ui/input';
 import { Label } from '../ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../ui/select';
@@ -17,7 +17,8 @@ import {
   monthlyBudgetAPI,
   skillsAPI,
   authAPI,
-  journalAPI
+  journalAPI,
+  apiRequest
 } from '../../lib/api';
 import { toast } from 'sonner';
 
@@ -44,6 +45,8 @@ export function Dashboard({ onNavigate }: DashboardProps = {}) {
   const [monthlyBudgets, setMonthlyBudgets] = useState<any[]>([]);
   const [skills, setSkills] = useState<any[]>([]);
   const [currentTime, setCurrentTime] = useState(new Date());
+  const [aiInsights, setAiInsights] = useState<string[]>([]);
+  const [insightsLoading, setInsightsLoading] = useState(false);
   
   // Modal states
   const [isTaskModalOpen, setIsTaskModalOpen] = useState(false);
@@ -76,6 +79,7 @@ export function Dashboard({ onNavigate }: DashboardProps = {}) {
 
   useEffect(() => {
     loadDashboardData();
+    loadAIInsights();
     
     // Force immediate time update
     setCurrentTime(new Date());
@@ -85,7 +89,20 @@ export function Dashboard({ onNavigate }: DashboardProps = {}) {
       setCurrentTime(new Date());
     }, 60000); // Update every minute
 
-    return () => clearInterval(timeInterval);
+    // Listen for data changes to refresh insights (force refresh when data changes)
+    const handleDataChange = () => {
+      loadAIInsights(true); // Force refresh when user adds new data
+    };
+    window.addEventListener('habitCreated', handleDataChange);
+    window.addEventListener('lifestyleCreated', handleDataChange);
+    window.addEventListener('journalCreated', handleDataChange);
+
+    return () => {
+      clearInterval(timeInterval);
+      window.removeEventListener('habitCreated', handleDataChange);
+      window.removeEventListener('lifestyleCreated', handleDataChange);
+      window.removeEventListener('journalCreated', handleDataChange);
+    };
   }, []);
 
   const loadDashboardData = async () => {
@@ -305,10 +322,91 @@ export function Dashboard({ onNavigate }: DashboardProps = {}) {
     }
   };
 
-  // AI Insights based on actual data
-  const aiInsights = [];
-  
-  if (taskCompletionRate >= 80) {
+  const loadAIInsights = async (forceRefresh = false) => {
+    try {
+      const CACHE_KEY = 'momentum_ai_insights_cache';
+      const CACHE_DURATION = 24 * 60 * 60 * 1000; // 24 hours in milliseconds
+      
+      // Check cache first (unless force refresh)
+      if (!forceRefresh) {
+        const cached = localStorage.getItem(CACHE_KEY);
+        if (cached) {
+          try {
+            const { insights, timestamp } = JSON.parse(cached);
+            const now = Date.now();
+            const age = now - timestamp;
+            
+            // If cache is less than 24 hours old, use it
+            if (age < CACHE_DURATION && insights && Array.isArray(insights) && insights.length > 0) {
+              setAiInsights(insights);
+              return; // Use cached insights, no API call needed
+            }
+          } catch (e) {
+            console.error('Error parsing cached insights:', e);
+            // Continue to fetch new insights if cache is invalid
+          }
+        }
+      }
+
+      // Fetch new insights from API
+      setInsightsLoading(true);
+      const data = await apiRequest<{ insights: string[] }>('/analytics/ai');
+      if (data.insights && Array.isArray(data.insights) && data.insights.length > 0) {
+        setAiInsights(data.insights);
+        // Cache the insights with current timestamp
+        localStorage.setItem(CACHE_KEY, JSON.stringify({
+          insights: data.insights,
+          timestamp: Date.now()
+        }));
+      } else {
+        // Fallback insights
+        const fallbackInsights = [
+          "Keep tracking your habits to see patterns over time!",
+          "Regular exercise and good sleep can improve your mood and productivity.",
+          "Consistency is key - small daily actions lead to big results."
+        ];
+        setAiInsights(fallbackInsights);
+        // Cache fallback insights too
+        localStorage.setItem(CACHE_KEY, JSON.stringify({
+          insights: fallbackInsights,
+          timestamp: Date.now()
+        }));
+      }
+    } catch (error) {
+      console.error('Error loading AI insights:', error);
+      // Try to use cached insights even if API fails
+      const CACHE_KEY = 'momentum_ai_insights_cache';
+      const cached = localStorage.getItem(CACHE_KEY);
+      if (cached) {
+        try {
+          const { insights } = JSON.parse(cached);
+          if (insights && Array.isArray(insights) && insights.length > 0) {
+            setAiInsights(insights);
+            return;
+          }
+        } catch (e) {
+          // Ignore cache parse errors
+        }
+      }
+      // Fallback insights on error
+      setAiInsights([
+        "Keep tracking your habits to see patterns over time!",
+        "Regular exercise and good sleep can improve your mood and productivity.",
+        "Consistency is key - small daily actions lead to big results."
+      ]);
+    } finally {
+      setInsightsLoading(false);
+    }
+  };
+
+  // Use fallback insights if AI insights are empty
+  const displayInsights = aiInsights.length > 0 ? aiInsights : [
+    "👋 Welcome! Start adding tasks, courses, and expenses to get personalized insights.",
+    "💡 Tip: Consistency is more important than intensity. Small daily actions lead to big results."
+  ];
+
+  // Old hardcoded insights code removed - now using AI-generated insights from API
+  if (false) {
     aiInsights.push("🎉 Excellent work! You're crushing your tasks this week.");
   } else if (taskCompletionRate < 50 && totalTasks > 0) {
     aiInsights.push("💡 Try breaking down large tasks into smaller, manageable steps.");
@@ -348,43 +446,47 @@ export function Dashboard({ onNavigate }: DashboardProps = {}) {
   }
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-2">
       {/* Greeting */}
       <div>
-        <h1 className="text-foreground text-3xl mb-1">{greeting}, {userName} ☀️</h1>
-        <p className="text-muted-foreground">Here's what's happening with your student life today</p>
+        <h1 className="text-foreground text-2xl mb-0.5">{greeting}, {userName} ☀️</h1>
+        <p className="text-muted-foreground text-sm">Here's what's happening with your student life today</p>
       </div>
 
       {/* Stats Grid */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-2">
         {stats.map((stat, index) => (
           <StatCard key={index} {...stat} />
         ))}
       </div>
 
       {/* AI Insights & Quick Actions */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-3">
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-2">
         {/* AI Insights */}
-        <Card className="lg:col-span-2 p-4 border-border bg-card">
-          <div className="flex items-center gap-2 mb-3">
-            <div className="w-7 h-7 rounded-lg bg-primary flex items-center justify-center">
-              <Sparkles className="w-4 h-4 text-primary-foreground" />
+        <Card className="lg:col-span-2 p-3 border-border bg-card">
+          <div className="flex items-center gap-2 mb-2">
+            <div className="w-6 h-6 rounded-lg bg-primary flex items-center justify-center">
+              <Sparkles className="w-3.5 h-3.5 text-primary-foreground" />
             </div>
-            <h2 className="text-foreground">AI Insights & Suggestions</h2>
+            <h2 className="text-foreground text-lg">AI Insights & Suggestions</h2>
           </div>
-          <div className="space-y-2">
-            {aiInsights.map((insight, index) => (
-              <div key={index} className="flex items-start gap-2 p-2.5 bg-accent rounded-lg">
-                <div className="w-1.5 h-1.5 rounded-full bg-primary mt-2"></div>
-                <p className="text-foreground text-sm flex-1">{insight}</p>
-              </div>
-            ))}
+          <div className="space-y-1.5">
+            {insightsLoading ? (
+              <div className="text-xs text-muted-foreground">Loading insights...</div>
+            ) : (
+              displayInsights.map((insight, index) => (
+                <div key={index} className="flex items-start gap-2 p-2 bg-accent rounded-lg">
+                  <div className="w-1.5 h-1.5 rounded-full bg-primary mt-1.5"></div>
+                  <p className="text-foreground text-xs flex-1">{insight}</p>
+                </div>
+              ))
+            )}
           </div>
         </Card>
 
         {/* Quick Actions */}
-        <Card className="p-4 border-border bg-card">
-          <h2 className="text-foreground mb-3">Quick Actions</h2>
+        <Card className="p-3 border-border bg-card">
+          <h2 className="text-foreground mb-2 text-lg">Quick Actions</h2>
           <div className="space-y-2">
             <Button 
               variant="outline" 
@@ -423,34 +525,34 @@ export function Dashboard({ onNavigate }: DashboardProps = {}) {
       </div>
 
       {/* Upcoming Tasks & Academic Progress */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-2">
         {/* Upcoming Tasks */}
-        <Card className="p-4 border-border bg-card">
-          <div className="flex items-center justify-between mb-3">
-            <h2 className="text-foreground">Upcoming Tasks</h2>
+        <Card className="p-3 border-border bg-card">
+          <div className="flex items-center justify-between mb-2">
+            <h2 className="text-foreground text-lg">Upcoming Tasks</h2>
             <Button variant="ghost" size="sm" onClick={() => navigate('/planner')}>View All</Button>
           </div>
           
           {upcomingTasks.length === 0 ? (
-            <div className="py-8 text-center">
-              <p className="text-muted-foreground mb-2">No tasks scheduled</p>
+            <div className="py-4 text-center">
+              <p className="text-muted-foreground mb-1.5 text-sm">No tasks scheduled</p>
               <Button variant="outline" size="sm" onClick={() => navigate('/planner')}>
-                <Plus className="w-4 h-4 mr-2" />
+                <Plus className="w-3 h-3 mr-1.5" />
                 Add Your First Task
               </Button>
             </div>
           ) : (
-            <div className="space-y-2">
+            <div className="space-y-1.5">
               {upcomingTasks.map((task: any) => (
-                <div key={task.id} className="flex items-center justify-between p-2.5 bg-accent rounded-lg hover:bg-accent/80 transition-colors">
+                <div key={task.id} className="flex items-center justify-between p-2 bg-accent rounded-lg hover:bg-accent/80 transition-colors">
                   <div className="flex-1">
-                    <p className="text-foreground text-sm mb-0.5">{task.title}</p>
+                    <p className="text-foreground text-xs mb-0.5">{task.title}</p>
                     <p className="text-muted-foreground text-xs">
                       {task.dueDate ? new Date(task.dueDate).toLocaleDateString() : 'No due date'}
-                      {task.description && ` • ${task.description.substring(0, 30)}...`}
+                      {task.description && ` • ${task.description.substring(0, 25)}...`}
                     </p>
                   </div>
-                  <Badge className={getPriorityColor(task.priority || 'medium')} variant="secondary">
+                  <Badge className={getPriorityColor(task.priority || 'medium')} variant="secondary" className="text-xs">
                     {task.priority || 'medium'}
                   </Badge>
                 </div>
@@ -460,31 +562,31 @@ export function Dashboard({ onNavigate }: DashboardProps = {}) {
         </Card>
 
         {/* Academic Progress */}
-        <Card className="p-4 border-border bg-card">
-          <div className="flex items-center justify-between mb-3">
-            <h2 className="text-foreground">Academic Progress</h2>
+        <Card className="p-3 border-border bg-card">
+          <div className="flex items-center justify-between mb-2">
+            <h2 className="text-foreground text-lg">Academic Progress</h2>
             <Button variant="ghost" size="sm" onClick={() => navigate('/academics')}>View All</Button>
           </div>
           
           {courses.length === 0 ? (
-            <div className="py-8 text-center">
-              <p className="text-muted-foreground mb-2">No courses tracked yet</p>
+            <div className="py-4 text-center">
+              <p className="text-muted-foreground mb-1.5 text-sm">No courses tracked yet</p>
               <Button variant="outline" size="sm" onClick={() => navigate('/academics')}>
-                <Plus className="w-4 h-4 mr-2" />
+                <Plus className="w-3 h-3 mr-1.5" />
                 Add Course
               </Button>
             </div>
           ) : (
-            <div className="space-y-3">
+            <div className="space-y-2">
               {courses.slice(0, 4).map((course: any) => (
                 <div key={course.id}>
-                  <div className="flex items-center justify-between text-sm mb-1.5">
+                  <div className="flex items-center justify-between text-xs mb-1">
                     <span className="text-foreground">{course.courseName}</span>
                     <span className="text-muted-foreground">{course.progress || 0}%</span>
                   </div>
-                  <div className="w-full bg-muted rounded-full h-2">
+                  <div className="w-full bg-muted rounded-full h-1.5">
                     <div
-                      className="bg-primary h-2 rounded-full transition-all"
+                      className="bg-primary h-1.5 rounded-full transition-all"
                       style={{ width: `${course.progress || 0}%` }}
                     ></div>
                   </div>
@@ -494,49 +596,17 @@ export function Dashboard({ onNavigate }: DashboardProps = {}) {
           )}
         </Card>
       </div>
-
-      {/* Skills Overview */}
-      <Card className="p-4 border-border bg-gradient-to-r from-blue-50 to-indigo-50 dark:from-blue-950 dark:to-indigo-950 border-blue-200 dark:border-blue-800">
-        <div className="flex items-center justify-between">
-          <div>
-            <h2 className="text-foreground mb-1">Skills Development</h2>
-            <p className="text-muted-foreground text-sm">
-              {skills.length > 0 
-                ? `Tracking ${skills.length} skill${skills.length > 1 ? 's' : ''} • ${avgSkillProgress}% avg progress` 
-                : 'No skills tracked yet'}
-            </p>
-          </div>
-          <div className="flex gap-2">
-            {skills.slice(0, 4).map((skill: any) => (
-              <div
-                key={skill.id}
-                className="px-3 py-1.5 rounded-lg bg-primary/10 text-primary text-sm font-medium"
-              >
-                {skill.name}
-              </div>
-            ))}
-            {skills.length === 0 && (
-              <Button variant="outline" size="sm" onClick={() => navigate('/skills')}>
-                <Plus className="w-4 h-4 mr-2" />
-                Add Skills
-              </Button>
-            )}
-            {skills.length > 0 && (
-              <Button variant="outline" size="sm" onClick={() => navigate('/skills')}>
-                View All
-              </Button>
-            )}
-          </div>
-        </div>
-      </Card>
       
       {/* Add Task Modal */}
       <Dialog open={isTaskModalOpen} onOpenChange={setIsTaskModalOpen}>
         <DialogContent>
           <DialogHeader>
             <DialogTitle>Add New Task</DialogTitle>
+            <DialogDescription>
+              Create a new task to track your progress and stay organized.
+            </DialogDescription>
           </DialogHeader>
-          <div className="space-y-4 mt-4">
+          <div className="space-y-3 mt-3">
             <div>
               <Label htmlFor="task-title">Title *</Label>
               <Input
@@ -612,8 +682,11 @@ export function Dashboard({ onNavigate }: DashboardProps = {}) {
         <DialogContent>
           <DialogHeader>
             <DialogTitle>Log Transaction</DialogTitle>
+            <DialogDescription>
+              Record a new income or expense transaction to track your finances.
+            </DialogDescription>
           </DialogHeader>
-          <div className="space-y-4 mt-4">
+          <div className="space-y-3 mt-3">
             <div>
               <Label htmlFor="expense-type">Transaction Type *</Label>
               <Select
@@ -716,8 +789,11 @@ export function Dashboard({ onNavigate }: DashboardProps = {}) {
         <DialogContent>
           <DialogHeader>
             <DialogTitle>New Journal Entry</DialogTitle>
+            <DialogDescription>
+              Write a new journal entry to reflect on your day and track your thoughts.
+            </DialogDescription>
           </DialogHeader>
-          <div className="space-y-4 mt-4">
+          <div className="space-y-3 mt-3">
             <div>
               <Label htmlFor="journal-title">Title *</Label>
               <Input

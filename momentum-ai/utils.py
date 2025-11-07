@@ -23,9 +23,16 @@ def retrieve_user_context(
     - Deduplication (remove similar documents)
     """
     # Build where clause with user_id and optional type filter
-    where_clause = {"user_id": user_id}
+    # ChromaDB requires $and operator when combining multiple conditions
     if allowed_types:
-        where_clause["type"] = {"$in": allowed_types}
+        where_clause = {
+            "$and": [
+                {"user_id": user_id},
+                {"type": {"$in": allowed_types}}
+            ]
+        }
+    else:
+        where_clause = {"user_id": user_id}
     
     # Get more candidates than needed for filtering
     q_emb = gemini_embedding([query])[0]

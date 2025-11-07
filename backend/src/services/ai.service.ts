@@ -88,4 +88,76 @@ export async function chatAI(payload: ChatRequest): Promise<ChatResponse> {
   return data;
 }
 
+// AI Insights for dashboard
+export interface InsightsRequest {
+  user_id: string;
+  habits: any[];
+  lifestyle_data: any[];
+  journal_entries: any[];
+}
+
+export interface InsightsResponse {
+  insights: string[];
+}
+
+export async function getAIInsights(payload: InsightsRequest): Promise<InsightsResponse> {
+  const { data } = await http.post<InsightsResponse>('/insights', payload);
+  return data;
+}
+
+// Skill Generation
+export interface SkillSuggestionRequest {
+  user_id: string;
+  courses: any[];
+  existing_skills: any[];
+  education_level?: string;
+  major?: string;
+  unstructured_context?: string;
+}
+
+export interface SkillSuggestion {
+  name: string;
+  category: string;
+  description: string;
+  reason: string;
+}
+
+export interface SkillSuggestionsResponse {
+  suggestions: SkillSuggestion[];
+}
+
+export interface SkillRoadmapRequest {
+  user_id: string;
+  skill_name: string;
+  courses: any[];
+  existing_skills: any[];
+  education_level?: string;
+  major?: string;
+  unstructured_context?: string;
+}
+
+export interface SkillRoadmapResponse {
+  name: string;
+  category: string;
+  level: string;
+  description: string;
+  goalStatement: string;
+  durationMonths: number;
+  estimatedHours: number;
+  startDate: string;
+  endDate: string;
+  milestones: Array<{ name: string; order: number }>;
+  resources: Array<{ title: string; type: string; url?: string; description?: string }>;
+}
+
+export async function getSkillSuggestions(payload: SkillSuggestionRequest): Promise<SkillSuggestionsResponse> {
+  const { data } = await http.post<SkillSuggestionsResponse>('/generate-skill-suggestions', payload);
+  return data;
+}
+
+export async function generateSkillRoadmap(payload: SkillRoadmapRequest): Promise<SkillRoadmapResponse> {
+  const { data } = await http.post<SkillRoadmapResponse>('/generate-skill-roadmap', payload);
+  return data;
+}
+
 

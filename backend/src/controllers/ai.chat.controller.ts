@@ -34,28 +34,123 @@ export const chat = async (req: Request, res: Response) => {
       : undefined;
 
     // Get structured context summary for AI
-    const courses = await prisma.course.findMany({
-      where: { userId },
-      select: { courseName: true },
-      take: 5
-    });
+    let courses: any[] = [];
+    let skills: any[] = [];
+    let recentFinances: any[] = [];
+    let allFinances: any[] = [];
+    let monthlyIncome = 0;
+    let monthlyExpenses = 0;
+    let savingsGoals: any[] = [];
+    let recentJournals: any[] = [];
+    let recentLifestyle: any[] = [];
+    let habits: any[] = [];
 
-    const skills = await prisma.skill.findMany({
-      where: { userId },
-      select: { name: true, category: true, level: true }
-    });
+    try {
+      courses = await prisma.course.findMany({
+        where: { userId },
+        select: { courseName: true },
+        take: 5
+      });
+
+      skills = await prisma.skill.findMany({
+        where: { userId },
+        select: { name: true, category: true, level: true }
+      });
+
+      // Get finance data (recent transactions, monthly totals, savings goals)
+      recentFinances = await prisma.finance.findMany({
+        where: { userId },
+        orderBy: { date: 'desc' },
+        take: 15,
+        select: {
+          id: true,
+          type: true,
+          amount: true,
+          category: true,
+          description: true,
+          date: true
+        }
+      });
+
+      allFinances = await prisma.finance.findMany({
+        where: { userId },
+        select: { type: true, amount: true }
+      });
+
+      monthlyIncome = allFinances
+        .filter(f => f.type === 'income')
+        .reduce((sum, f) => sum + (f.amount || 0), 0);
+      monthlyExpenses = allFinances
+        .filter(f => f.type === 'expense')
+        .reduce((sum, f) => sum + (f.amount || 0), 0);
+
+      savingsGoals = await prisma.savingsGoal.findMany({
+        where: { userId, status: 'active' },
+        select: { title: true, targetAmount: true, currentAmount: true, dueDate: true }
+      });
+
+      // Get journal entries (recent with mood trends)
+      recentJournals = await prisma.journal.findMany({
+        where: { userId },
+        orderBy: { date: 'desc' },
+        take: 7,
+        select: {
+          title: true,
+          mood: true,
+          tags: true,
+          date: true
+        }
+      });
+
+      // Get lifestyle data (recent records)
+      recentLifestyle = await prisma.lifestyle.findMany({
+        where: { userId },
+        orderBy: { date: 'desc' },
+        take: 7,
+        select: {
+          date: true,
+          sleepHours: true,
+          exerciseMinutes: true,
+          stressLevel: true,
+          mealQuality: true
+        }
+      });
+
+      // Get habits with completion status
+      habits = await prisma.habit.findMany({
+        where: { userId },
+        select: {
+          id: true,
+          name: true,
+          target: true,
+          time: true,
+          streak: true,
+          completed: true,
+          completionHistory: true
+        }
+      });
+    } catch (contextError: any) {
+      console.error('Error fetching context data:', contextError);
+      // Continue with empty arrays - don't fail the entire request
+    }
 
     // Get recent daily plans (last 7 days)
-    const recentPlans = await prisma.aIPlan.findMany({
-      where: { userId },
-      orderBy: { date: 'desc' },
-      take: 3,
-      select: {
-        date: true,
-        summary: true,
-        planJson: true
-      }
-    });
+    let recentPlans: any[] = [];
+    try {
+      recentPlans = await prisma.aIPlan.findMany({
+        where: { userId },
+        orderBy: { date: 'desc' },
+        take: 3,
+        select: {
+          date: true,
+          summary: true,
+          planJson: true
+        }
+      });
+    } catch (planError: any) {
+      console.error('Error fetching recent plans:', planError);
+      // Continue with empty array
+    }
 
     // Build structured context summary
     const structuredContextParts: string[] = [];
@@ -68,6 +163,65 @@ export const chat = async (req: Request, res: Response) => {
     if (skills.length > 0) {
       const skillsList = skills.map(s => `${s.name} (${s.category || 'General'}, ${s.level || 'beginner'})`).join(', ');
       structuredContextParts.push(`IMPORTANT - Existing Skills: ${skillsList}. If user wants to learn a skill that already exists, UPDATE it instead of creating a duplicate!`);
+    }
+
+    // Add finance context
+    if (recentFinances.length > 0) {
+      const financeSummary = recentFinances.slice(0, 10).map(f => 
+        `[ID: ${f.id}] ${f.type}: ${f.amount} ${f.category} - ${f.description || 'No description'}`
+      ).join(', ');
+      structuredContextParts.push(`Recent Finances: ${financeSummary}`);
+    }
+    if (monthlyIncome > 0 || monthlyExpenses > 0) {
+      structuredContextParts.push(`Monthly Summary: Income ${monthlyIncome.toFixed(2)}, Expenses ${monthlyExpenses.toFixed(2)}, Balance ${(monthlyIncome - monthlyExpenses).toFixed(2)}`);
+    }
+    if (savingsGoals.length > 0) {
+      const goalsList = savingsGoals.map(g => 
+        `${g.title}: ${g.currentAmount}/${g.targetAmount} (${g.dueDate ? new Date(g.dueDate).toLocaleDateString() : 'No deadline'})`
+      ).join(', ');
+      structuredContextParts.push(`Active Savings Goals: ${goalsList}`);
+    }
+
+    // Add journal/lifestyle context
+    if (recentJournals.length > 0) {
+      const moodCounts: Record<string, number> = {};
+      recentJournals.forEach(j => {
+        if (j.mood) {
+          moodCounts[j.mood] = (moodCounts[j.mood] || 0) + 1;
+        }
+      });
+      const moodSummary = Object.entries(moodCounts).map(([mood, count]) => `${mood}: ${count}`).join(', ');
+      structuredContextParts.push(`Recent Journal Entries: ${recentJournals.length} entries. Mood trends: ${moodSummary || 'No mood data'}`);
+    }
+    if (recentLifestyle.length > 0) {
+      const sleepRecords = recentLifestyle.filter(l => l.sleepHours != null);
+      const exerciseRecords = recentLifestyle.filter(l => l.exerciseMinutes != null);
+      const stressRecords = recentLifestyle.filter(l => l.stressLevel != null);
+      
+      const avgSleep = sleepRecords.length > 0 
+        ? sleepRecords.reduce((sum, l) => sum + (l.sleepHours || 0), 0) / sleepRecords.length 
+        : 0;
+      const avgExercise = exerciseRecords.length > 0 
+        ? exerciseRecords.reduce((sum, l) => sum + (l.exerciseMinutes || 0), 0) / exerciseRecords.length 
+        : 0;
+      const avgStress = stressRecords.length > 0 
+        ? stressRecords.reduce((sum, l) => sum + (l.stressLevel || 0), 0) / stressRecords.length 
+        : 0;
+      
+      if (avgSleep > 0 || avgExercise > 0 || avgStress > 0) {
+        structuredContextParts.push(`Lifestyle Patterns (last 7 days): Avg Sleep ${avgSleep.toFixed(1)}h, Avg Exercise ${avgExercise.toFixed(0)}min, Avg Stress ${avgStress.toFixed(1)}/10`);
+      }
+    }
+
+    // Add habits context
+    if (habits.length > 0) {
+      const habitsList = habits.map(h => {
+        const completionRate = h.completionHistory && Array.isArray(h.completionHistory) 
+          ? (h.completionHistory as any[]).filter((entry: any) => entry.completed).length 
+          : 0;
+        return `${h.name} (${h.target}, streak: ${h.streak}, completed today: ${h.completed})`;
+      }).join(', ');
+      structuredContextParts.push(`Current Habits: ${habitsList}`);
     }
     
     // Add recent plans context
@@ -89,13 +243,25 @@ export const chat = async (req: Request, res: Response) => {
 
     // Forward to AI service with structured context
     // The AI service will also retrieve additional context from ChromaDB
-    const aiResp = await chatAI({
-      user_id: userId,
-      user_name: userName,
-      message,
-      conversation_history: conversation_history || [],
-      structured_context: structuredContextParts.join('; ') // Pass as string for now
-    });
+    let aiResp;
+    try {
+      aiResp = await chatAI({
+        user_id: userId,
+        user_name: userName,
+        message,
+        conversation_history: conversation_history || [],
+        structured_context: structuredContextParts.join('; ') // Pass as string for now
+      });
+    } catch (aiError: any) {
+      console.error('Error calling AI service:', aiError);
+      console.error('AI service error details:', {
+        message: aiError.message,
+        response: aiError.response?.data,
+        status: aiError.response?.status,
+        code: aiError.code
+      });
+      throw new Error(`AI service error: ${aiError.message || 'Failed to get AI response'}`);
+    }
 
     // Process actions returned by AI (e.g., update user data)
     const actionResults: any[] = [];
@@ -370,6 +536,359 @@ export const chat = async (req: Request, res: Response) => {
             });
             console.log('Resource added via AI:', action.data.title);
             actionResults.push({ type: action.type, success: true, data: { skillId: skill.id } });
+          } else if (action.type === 'add_expense') {
+            console.log('Processing add_expense action:', JSON.stringify(action.data, null, 2));
+            const finance = await prisma.finance.create({
+              data: {
+                userId,
+                type: 'expense',
+                amount: parseFloat(action.data.amount),
+                category: action.data.category || 'Other',
+                description: action.data.description || null,
+                date: action.data.date ? new Date(action.data.date) : new Date(),
+                paymentMethod: action.data.paymentMethod || null,
+                recurring: action.data.recurring || false,
+                frequency: action.data.frequency || null,
+                aiGenerated: true
+              }
+            });
+            console.log('Expense added via AI:', action.data.description || action.data.category);
+            actionResults.push({ type: action.type, success: true, data: { financeId: finance.id } });
+          } else if (action.type === 'add_income') {
+            console.log('Processing add_income action:', JSON.stringify(action.data, null, 2));
+            const finance = await prisma.finance.create({
+              data: {
+                userId,
+                type: 'income',
+                amount: parseFloat(action.data.amount),
+                category: action.data.category || 'Other',
+                description: action.data.description || null,
+                date: action.data.date ? new Date(action.data.date) : new Date(),
+                paymentMethod: action.data.paymentMethod || null,
+                aiGenerated: true
+              }
+            });
+            console.log('Income added via AI:', action.data.description || action.data.category);
+            actionResults.push({ type: action.type, success: true, data: { financeId: finance.id } });
+          } else if (action.type === 'update_expense') {
+            console.log('Processing update_expense action:', JSON.stringify(action.data, null, 2));
+            // Find finance by ID or description
+            let finance = null;
+            if (action.data.finance_id) {
+              finance = await prisma.finance.findFirst({
+                where: { id: action.data.finance_id, userId, type: 'expense' }
+              });
+            } else if (action.data.description) {
+              // Find by description (most recent match)
+              finance = await prisma.finance.findFirst({
+                where: {
+                  userId,
+                  type: 'expense',
+                  description: { contains: action.data.description, mode: 'insensitive' }
+                },
+                orderBy: { date: 'desc' }
+              });
+            }
+            if (!finance) {
+              console.error('Expense not found for update:', action.data);
+              actionResults.push({ type: action.type, success: false, error: 'Expense not found' });
+              continue;
+            }
+            const updateData: any = {};
+            if (action.data.amount !== undefined) updateData.amount = parseFloat(action.data.amount);
+            if (action.data.category) updateData.category = action.data.category;
+            if (action.data.description !== undefined) updateData.description = action.data.description;
+            if (action.data.date) updateData.date = new Date(action.data.date);
+            await prisma.finance.update({ where: { id: finance.id }, data: updateData });
+            console.log('Expense updated via AI:', finance.id);
+            actionResults.push({ type: action.type, success: true, data: { financeId: finance.id } });
+          } else if (action.type === 'update_income') {
+            console.log('Processing update_income action:', JSON.stringify(action.data, null, 2));
+            // Find finance by ID or description
+            let finance = null;
+            if (action.data.finance_id) {
+              finance = await prisma.finance.findFirst({
+                where: { id: action.data.finance_id, userId, type: 'income' }
+              });
+            } else if (action.data.description) {
+              // Find by description (most recent match)
+              finance = await prisma.finance.findFirst({
+                where: {
+                  userId,
+                  type: 'income',
+                  description: { contains: action.data.description, mode: 'insensitive' }
+                },
+                orderBy: { date: 'desc' }
+              });
+            }
+            if (!finance) {
+              console.error('Income not found for update:', action.data);
+              actionResults.push({ type: action.type, success: false, error: 'Income not found' });
+              continue;
+            }
+            const updateData: any = {};
+            if (action.data.amount !== undefined) updateData.amount = parseFloat(action.data.amount);
+            if (action.data.category) updateData.category = action.data.category;
+            if (action.data.description !== undefined) updateData.description = action.data.description;
+            if (action.data.date) updateData.date = new Date(action.data.date);
+            await prisma.finance.update({ where: { id: finance.id }, data: updateData });
+            console.log('Income updated via AI:', finance.id);
+            actionResults.push({ type: action.type, success: true, data: { financeId: finance.id } });
+          } else if (action.type === 'add_savings_goal') {
+            console.log('Processing add_savings_goal action:', JSON.stringify(action.data, null, 2));
+            const goal = await prisma.savingsGoal.create({
+              data: {
+                userId,
+                title: action.data.title,
+                targetAmount: parseFloat(action.data.targetAmount),
+                category: action.data.category || null,
+                dueDate: action.data.dueDate ? new Date(action.data.dueDate) : null,
+                description: action.data.description || null,
+                priority: action.data.priority || 'medium',
+                aiGenerated: true
+              }
+            });
+            console.log('Savings goal added via AI:', action.data.title);
+            actionResults.push({ type: action.type, success: true, data: { goalId: goal.id, goalTitle: goal.title } });
+          } else if (action.type === 'update_savings_goal') {
+            console.log('Processing update_savings_goal action:', JSON.stringify(action.data, null, 2));
+            let goal = null;
+            if (action.data.goal_id) {
+              goal = await prisma.savingsGoal.findUnique({ where: { id: action.data.goal_id } });
+            } else if (action.data.title) {
+              goal = await prisma.savingsGoal.findFirst({
+                where: { userId, title: { contains: action.data.title, mode: 'insensitive' } }
+              });
+            }
+            if (!goal || goal.userId !== userId) {
+              console.error('Savings goal not found for update:', action.data);
+              continue;
+            }
+            const updateData: any = {};
+            if (action.data.title) updateData.title = action.data.title;
+            if (action.data.targetAmount !== undefined) updateData.targetAmount = parseFloat(action.data.targetAmount);
+            if (action.data.currentAmount !== undefined) updateData.currentAmount = parseFloat(action.data.currentAmount);
+            if (action.data.dueDate !== undefined) updateData.dueDate = action.data.dueDate ? new Date(action.data.dueDate) : null;
+            if (action.data.status) updateData.status = action.data.status;
+            await prisma.savingsGoal.update({ where: { id: goal.id }, data: updateData });
+            console.log('Savings goal updated via AI:', goal.title);
+            actionResults.push({ type: action.type, success: true, data: { goalId: goal.id } });
+          } else if (action.type === 'delete_finance') {
+            console.log('Processing delete_finance action:', JSON.stringify(action.data, null, 2));
+            // Find finance by ID or description
+            let finance = null;
+            if (action.data.finance_id) {
+              finance = await prisma.finance.findFirst({
+                where: { id: action.data.finance_id, userId }
+              });
+            } else if (action.data.description) {
+              // Find by description (most recent match)
+              finance = await prisma.finance.findFirst({
+                where: {
+                  userId,
+                  description: { contains: action.data.description, mode: 'insensitive' }
+                },
+                orderBy: { date: 'desc' }
+              });
+            }
+            if (!finance) {
+              console.error('Finance record not found for delete:', action.data);
+              actionResults.push({ type: action.type, success: false, error: 'Finance record not found' });
+              continue;
+            }
+            await prisma.finance.delete({ where: { id: finance.id } });
+            console.log('Finance record deleted via AI:', finance.id);
+            actionResults.push({ type: action.type, success: true });
+          } else if (action.type === 'add_journal') {
+            console.log('Processing add_journal action:', JSON.stringify(action.data, null, 2));
+            const journal = await prisma.journal.create({
+              data: {
+                userId,
+                title: action.data.title,
+                content: action.data.content,
+                mood: action.data.mood || null,
+                tags: action.data.tags || [],
+                date: action.data.date ? new Date(action.data.date) : new Date()
+              }
+            });
+            console.log('Journal entry added via AI:', action.data.title);
+            actionResults.push({ type: action.type, success: true, data: { journalId: journal.id } });
+          } else if (action.type === 'update_journal') {
+            console.log('Processing update_journal action:', JSON.stringify(action.data, null, 2));
+            const journal = await prisma.journal.findFirst({
+              where: { id: action.data.journal_id, userId }
+            });
+            if (!journal) {
+              console.error('Journal entry not found for update:', action.data);
+              continue;
+            }
+            const updateData: any = {};
+            if (action.data.title) updateData.title = action.data.title;
+            if (action.data.content !== undefined) updateData.content = action.data.content;
+            if (action.data.mood) updateData.mood = action.data.mood;
+            if (action.data.tags) updateData.tags = action.data.tags;
+            await prisma.journal.update({ where: { id: journal.id }, data: updateData });
+            console.log('Journal entry updated via AI:', journal.title);
+            actionResults.push({ type: action.type, success: true, data: { journalId: journal.id } });
+          } else if (action.type === 'delete_journal') {
+            console.log('Processing delete_journal action:', JSON.stringify(action.data, null, 2));
+            const journal = await prisma.journal.findFirst({
+              where: { id: action.data.journal_id, userId }
+            });
+            if (!journal) {
+              console.error('Journal entry not found for delete:', action.data);
+              continue;
+            }
+            await prisma.journal.delete({ where: { id: journal.id } });
+            console.log('Journal entry deleted via AI:', journal.id);
+            actionResults.push({ type: action.type, success: true });
+          } else if (action.type === 'add_lifestyle') {
+            console.log('Processing add_lifestyle action:', JSON.stringify(action.data, null, 2));
+            const lifestyle = await prisma.lifestyle.create({
+              data: {
+                userId,
+                date: action.data.date ? new Date(action.data.date) : new Date(),
+                sleepHours: action.data.sleepHours ? parseFloat(action.data.sleepHours) : null,
+                exerciseMinutes: action.data.exerciseMinutes ? parseInt(action.data.exerciseMinutes) : null,
+                waterIntake: action.data.waterIntake ? parseFloat(action.data.waterIntake) : null,
+                mealQuality: action.data.mealQuality || null,
+                stressLevel: action.data.stressLevel ? parseInt(action.data.stressLevel) : null,
+                notes: action.data.notes || null
+              }
+            });
+            console.log('Lifestyle record added via AI');
+            actionResults.push({ type: action.type, success: true, data: { lifestyleId: lifestyle.id } });
+          } else if (action.type === 'update_lifestyle') {
+            console.log('Processing update_lifestyle action:', JSON.stringify(action.data, null, 2));
+            const lifestyle = await prisma.lifestyle.findFirst({
+              where: { id: action.data.lifestyle_id, userId }
+            });
+            if (!lifestyle) {
+              console.error('Lifestyle record not found for update:', action.data);
+              continue;
+            }
+            const updateData: any = {};
+            if (action.data.sleepHours !== undefined) updateData.sleepHours = action.data.sleepHours ? parseFloat(action.data.sleepHours) : null;
+            if (action.data.exerciseMinutes !== undefined) updateData.exerciseMinutes = action.data.exerciseMinutes ? parseInt(action.data.exerciseMinutes) : null;
+            if (action.data.waterIntake !== undefined) updateData.waterIntake = action.data.waterIntake ? parseFloat(action.data.waterIntake) : null;
+            if (action.data.mealQuality) updateData.mealQuality = action.data.mealQuality;
+            if (action.data.stressLevel !== undefined) updateData.stressLevel = action.data.stressLevel ? parseInt(action.data.stressLevel) : null;
+            if (action.data.notes !== undefined) updateData.notes = action.data.notes;
+            await prisma.lifestyle.update({ where: { id: lifestyle.id }, data: updateData });
+            console.log('Lifestyle record updated via AI');
+            actionResults.push({ type: action.type, success: true, data: { lifestyleId: lifestyle.id } });
+          } else if (action.type === 'delete_lifestyle') {
+            console.log('Processing delete_lifestyle action:', JSON.stringify(action.data, null, 2));
+            const lifestyle = await prisma.lifestyle.findFirst({
+              where: { id: action.data.lifestyle_id, userId }
+            });
+            if (!lifestyle) {
+              console.error('Lifestyle record not found for delete:', action.data);
+              continue;
+            }
+            await prisma.lifestyle.delete({ where: { id: lifestyle.id } });
+            console.log('Lifestyle record deleted via AI:', lifestyle.id);
+            actionResults.push({ type: action.type, success: true });
+          } else if (action.type === 'add_habit') {
+            console.log('Processing add_habit action:', JSON.stringify(action.data, null, 2));
+            const habit = await prisma.habit.create({
+              data: {
+                userId,
+                name: action.data.name,
+                target: action.data.target || 'Daily',
+                time: action.data.time || '00:00',
+                color: action.data.color || 'from-blue-500 to-cyan-500',
+                icon: action.data.icon || '⭐',
+                streak: 0,
+                completed: false
+              }
+            });
+            console.log('Habit added via AI:', action.data.name);
+            actionResults.push({ type: action.type, success: true, data: { habitId: habit.id, habitName: habit.name } });
+          } else if (action.type === 'update_habit') {
+            console.log('Processing update_habit action:', JSON.stringify(action.data, null, 2));
+            const habit = await prisma.habit.findFirst({
+              where: { id: action.data.habit_id, userId }
+            });
+            if (!habit) {
+              console.error('Habit not found for update:', action.data);
+              continue;
+            }
+            const updateData: any = {};
+            if (action.data.name) updateData.name = action.data.name;
+            if (action.data.target) updateData.target = action.data.target;
+            if (action.data.time) updateData.time = action.data.time;
+            if (action.data.color) updateData.color = action.data.color;
+            if (action.data.icon) updateData.icon = action.data.icon;
+            await prisma.habit.update({ where: { id: habit.id }, data: updateData });
+            console.log('Habit updated via AI:', habit.name);
+            actionResults.push({ type: action.type, success: true, data: { habitId: habit.id } });
+          } else if (action.type === 'delete_habit') {
+            console.log('Processing delete_habit action:', JSON.stringify(action.data, null, 2));
+            const habit = await prisma.habit.findFirst({
+              where: { id: action.data.habit_id, userId }
+            });
+            if (!habit) {
+              console.error('Habit not found for delete:', action.data);
+              continue;
+            }
+            await prisma.habit.delete({ where: { id: habit.id } });
+            console.log('Habit deleted via AI:', habit.id);
+            actionResults.push({ type: action.type, success: true });
+          } else if (action.type === 'toggle_habit') {
+            console.log('Processing toggle_habit action:', JSON.stringify(action.data, null, 2));
+            const habit = await prisma.habit.findFirst({
+              where: { id: action.data.habit_id, userId }
+            });
+            if (!habit) {
+              console.error('Habit not found for toggle:', action.data);
+              continue;
+            }
+            // Toggle completion status for today
+            const newCompleted = !habit.completed;
+            const today = new Date().toISOString().split('T')[0];
+            const history = (habit.completionHistory as any) || [];
+            const existingEntryIndex = history.findIndex((entry: any) => entry.date === today);
+            let newHistory;
+            if (existingEntryIndex >= 0) {
+              newHistory = [...history];
+              newHistory[existingEntryIndex] = { date: today, completed: newCompleted };
+            } else {
+              newHistory = [...history, { date: today, completed: newCompleted }];
+            }
+            // Calculate streak
+            const calculateStreak = (completionHistory: { date: string; completed: boolean }[]) => {
+              if (completionHistory.length === 0) return 0;
+              const sorted = [...completionHistory]
+                .filter(entry => entry.completed)
+                .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+              if (sorted.length === 0) return 0;
+              let streak = 0;
+              const todayDate = new Date();
+              todayDate.setHours(0, 0, 0, 0);
+              for (let i = 0; i < sorted.length; i++) {
+                const entryDate = new Date(sorted[i].date);
+                entryDate.setHours(0, 0, 0, 0);
+                const daysDiff = Math.floor((todayDate.getTime() - entryDate.getTime()) / (1000 * 60 * 60 * 24));
+                if (daysDiff === i) {
+                  streak++;
+                } else {
+                  break;
+                }
+              }
+              return streak;
+            };
+            const newStreak = calculateStreak(newHistory);
+            await prisma.habit.update({
+              where: { id: habit.id },
+              data: {
+                completed: newCompleted,
+                completionHistory: newHistory,
+                streak: newStreak
+              }
+            });
+            console.log('Habit toggled via AI:', habit.name, newCompleted ? 'completed' : 'incomplete');
+            actionResults.push({ type: action.type, success: true, data: { habitId: habit.id, completed: newCompleted } });
           }
         } catch (error: any) {
           console.error(`Error processing action ${action.type}:`, error);
@@ -395,9 +914,19 @@ export const chat = async (req: Request, res: Response) => {
     });
   } catch (error: any) {
     console.error('Chat error:', error);
+    console.error('Error stack:', error.stack);
+    console.error('Error name:', error.name);
+    console.error('Error message:', error.message);
+    if (error.response) {
+      console.error('Error response:', error.response.data);
+    }
     res.status(500).json({
       success: false,
-      error: error.message || 'Failed to process chat message'
+      error: error.message || 'Failed to process chat message',
+      details: process.env.NODE_ENV === 'development' ? {
+        stack: error.stack,
+        name: error.name
+      } : undefined
     });
   }
 };

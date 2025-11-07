@@ -1,6 +1,7 @@
 import express from 'express';
 import { PrismaClient } from '@prisma/client';
 import { authenticate, AuthRequest } from '../middleware/auth.middleware';
+import { getSkillSuggestions, generateSkillRoadmap } from '../services/ai.service';
 
 const router = express.Router();
 const prisma = new PrismaClient();
@@ -714,6 +715,108 @@ router.post('/ai-generate', async (req: AuthRequest, res) => {
   } catch (error) {
     console.error('Error generating AI skill:', error);
     res.status(500).json({ error: 'Error generating AI skill' });
+  }
+});
+
+// ===========================
+// AI SKILL GENERATION ENDPOINTS
+// ===========================
+
+// Get AI-generated skill suggestions
+router.get('/generate/suggestions', async (req: AuthRequest, res) => {
+  try {
+    const userId = req.userId!;
+    
+    // Get user data for context
+    const user = await prisma.user.findUnique({
+      where: { id: userId },
+      select: {
+        educationLevel: true,
+        major: true,
+        unstructuredContext: true
+      }
+    });
+
+    // Get courses
+    const courses = await prisma.course.findMany({
+      where: { userId },
+      select: { courseName: true },
+      take: 10
+    });
+
+    // Get existing skills
+    const existingSkills = await prisma.skill.findMany({
+      where: { userId },
+      select: { name: true, category: true, level: true },
+      take: 10
+    });
+
+    // Call AI service
+    const suggestions = await getSkillSuggestions({
+      user_id: userId,
+      courses: courses.map(c => ({ courseName: c.courseName })),
+      existing_skills: existingSkills,
+      education_level: user?.educationLevel || undefined,
+      major: user?.major || undefined,
+      unstructured_context: user?.unstructuredContext || undefined
+    });
+
+    res.json(suggestions);
+  } catch (error) {
+    console.error('Error generating skill suggestions:', error);
+    res.status(500).json({ error: 'Error generating skill suggestions' });
+  }
+});
+
+// Generate complete skill roadmap
+router.post('/generate/roadmap', async (req: AuthRequest, res) => {
+  try {
+    const userId = req.userId!;
+    const { skillName } = req.body;
+
+    if (!skillName) {
+      return res.status(400).json({ error: 'skillName is required' });
+    }
+
+    // Get user data for context
+    const user = await prisma.user.findUnique({
+      where: { id: userId },
+      select: {
+        educationLevel: true,
+        major: true,
+        unstructuredContext: true
+      }
+    });
+
+    // Get courses
+    const courses = await prisma.course.findMany({
+      where: { userId },
+      select: { courseName: true },
+      take: 10
+    });
+
+    // Get existing skills
+    const existingSkills = await prisma.skill.findMany({
+      where: { userId },
+      select: { name: true, category: true, level: true },
+      take: 10
+    });
+
+    // Call AI service
+    const roadmap = await generateSkillRoadmap({
+      user_id: userId,
+      skill_name: skillName,
+      courses: courses.map(c => ({ courseName: c.courseName })),
+      existing_skills: existingSkills,
+      education_level: user?.educationLevel || undefined,
+      major: user?.major || undefined,
+      unstructured_context: user?.unstructuredContext || undefined
+    });
+
+    res.json(roadmap);
+  } catch (error) {
+    console.error('Error generating skill roadmap:', error);
+    res.status(500).json({ error: 'Error generating skill roadmap' });
   }
 });
 
