@@ -29,16 +29,19 @@ def gemini_embedding(texts: List[str]) -> List[List[float]]:
         # Return zero embeddings as fallback
         return [[0.0] * 768 for _ in texts]
 
-def call_gemini_generate(prompt: str) -> str:
+def call_gemini_generate(prompt: str, use_fast_model: bool = False) -> str:
     """
     Generate content using Gemini with fallback to lite model if rate limited.
+    use_fast_model: If True, use faster lite model for speed-critical operations like skill creation.
     """
     fallback_model = "gemini-2.5-flash-lite"
+    model_to_use = fallback_model if use_fast_model else GEMINI_MODEL
     
     try:
-        # Try primary model first
+        # Use faster model for skill creation or primary model otherwise
+        # Using gemini-2.5-flash-lite for skill creation (faster, optimized for speed)
         resp = genai_client.models.generate_content(
-            model=GEMINI_MODEL,
+            model=model_to_use,
             contents=prompt
         )
         

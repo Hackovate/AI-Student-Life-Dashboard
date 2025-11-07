@@ -1,5 +1,5 @@
-import { useState, useEffect, useRef } from 'react';
-import { Send, Paperclip, Sparkles, CheckCircle2, Calendar, GraduationCap, Wallet, BookOpen, X, Loader2 } from 'lucide-react';
+import React, { useState, useEffect, useRef } from 'react';
+import { Send, Paperclip, Sparkles, CheckCircle2, Calendar, GraduationCap, Wallet, BookOpen, X, Loader2, Trash2 } from 'lucide-react';
 import { Card } from '../ui/card';
 import { Button } from '../ui/button';
 import { Badge } from '../ui/badge';
@@ -26,10 +26,44 @@ interface LinkedItem {
   action: string;
 }
 
+// Function to parse markdown and convert to JSX
+function parseMarkdown(text: string): React.ReactNode[] {
+  const parts: React.ReactNode[] = [];
+  const regex = /\*\*(.*?)\*\*/g;
+  let lastIndex = 0;
+  let match;
+  let key = 0;
+
+  while ((match = regex.exec(text)) !== null) {
+    // Add text before the match
+    if (match.index > lastIndex) {
+      parts.push(text.substring(lastIndex, match.index));
+    }
+    // Add bold text
+    parts.push(
+      <strong key={key++} className="font-semibold">
+        {match[1]}
+      </strong>
+    );
+    lastIndex = match.index + match[0].length;
+  }
+
+  // Add remaining text
+  if (lastIndex < text.length) {
+    parts.push(text.substring(lastIndex));
+  }
+
+  return parts.length > 0 ? parts : [text];
+}
+
 // Message Bubble Component
 function MessageBubble({ msg }: { msg: Message }) {
   const isLongMessage = msg.content.length > 300;
   const [isExpanded, setIsExpanded] = useState(!isLongMessage);
+  
+  const displayContent = isLongMessage && !isExpanded 
+    ? `${msg.content.substring(0, 300)}...` 
+    : msg.content;
   
   return (
     <div className={`flex ${msg.type === 'user' ? 'justify-end' : 'justify-start'} group`}>
@@ -51,9 +85,7 @@ function MessageBubble({ msg }: { msg: Message }) {
         >
           <div className="prose prose-sm max-w-none">
             <p className={`text-sm leading-relaxed ${msg.type === 'user' ? 'text-white' : 'text-gray-800'} whitespace-pre-wrap break-words`}>
-              {isLongMessage && !isExpanded 
-                ? `${msg.content.substring(0, 300)}...` 
-                : msg.content}
+              {parseMarkdown(displayContent)}
             </p>
             {isLongMessage && (
               <button
@@ -75,21 +107,45 @@ function MessageBubble({ msg }: { msg: Message }) {
   );
 }
 
-export function PersonalizedAssistant() {
-  const [message, setMessage] = useState('');
-  const [showLinkedItems, setShowLinkedItems] = useState(true);
-  const [messages, setMessages] = useState<Message[]>([
+const CHAT_STORAGE_KEY = 'momentum_ai_chat_history';
+
+const getInitialMessages = (): Message[] => {
+  const saved = localStorage.getItem(CHAT_STORAGE_KEY);
+  if (saved) {
+    try {
+      const parsed = JSON.parse(saved);
+      if (Array.isArray(parsed) && parsed.length > 0) {
+        return parsed;
+      }
+    } catch (e) {
+      console.error('Error loading chat history:', e);
+    }
+  }
+  return [
     {
       id: 1,
       type: 'ai',
       content: "Hello! I'm your AI Student Life Assistant. I can help you manage tasks, plan your day, track expenses, and much more. How can I assist you today?",
       timestamp: new Date().toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })
     }
-  ]);
+  ];
+};
+
+export function PersonalizedAssistant() {
+  const [message, setMessage] = useState('');
+  const [showLinkedItems, setShowLinkedItems] = useState(true);
+  const [messages, setMessages] = useState<Message[]>(getInitialMessages);
   const [loading, setLoading] = useState(false);
   const [contextWindowOpen, setContextWindowOpen] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const scrollAreaRef = useRef<HTMLDivElement>(null);
+
+  // Save messages to localStorage whenever they change
+  useEffect(() => {
+    if (messages.length > 0) {
+      localStorage.setItem(CHAT_STORAGE_KEY, JSON.stringify(messages));
+    }
+  }, [messages]);
 
   // Auto-scroll to bottom when new messages arrive
   useEffect(() => {
@@ -98,6 +154,20 @@ export function PersonalizedAssistant() {
 
   const formatTime = () => {
     return new Date().toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' });
+  };
+
+  const handleClearChat = () => {
+    if (confirm('Are you sure you want to clear the chat history? This cannot be undone.')) {
+      const initialMessage: Message = {
+        id: 1,
+        type: 'ai',
+        content: "Hello! I'm your AI Student Life Assistant. I can help you manage tasks, plan your day, track expenses, and much more. How can I assist you today?",
+        timestamp: new Date().toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })
+      };
+      setMessages([initialMessage]);
+      localStorage.removeItem(CHAT_STORAGE_KEY);
+      toast.success('Chat history cleared');
+    }
   };
 
   const handleSendMessage = async () => {
@@ -136,14 +206,67 @@ export function PersonalizedAssistant() {
           timestamp: formatTime()
         };
         setMessages(prev => [...prev, aiMessage]);
+
+        // Check action results from backend (more reliable than checking actions)
+        if (response.data.actionResults && response.data.actionResults.length > 0) {
+          const skillResults = response.data.actionResults.filter((result: any) => result.type === 'add_skill');
+          
+          if (skillResults.length > 0) {
+            const successfulSkills = skillResults.filter((r: any) => r.success);
+            const failedSkills = skillResults.filter((r: any) => !r.success);
+
+            // Dispatch custom event to notify Skills page for successful creations
+            if (successfulSkills.length > 0) {
+              window.dispatchEvent(new CustomEvent('skillCreated', { 
+                detail: { skills: successfulSkills.map((r: any) => r.data?.skillName || 'skill') } 
+              }));
+              
+              // Show success notifications
+              successfulSkills.forEach((result: any) => {
+                toast.success(`Skill '${result.data?.skillName || 'skill'}' created successfully!`);
+              });
+            }
+
+            // Show error notifications for failed creations
+            failedSkills.forEach((result: any) => {
+              toast.error(`Failed to create skill: ${result.error || 'Unknown error'}`);
+            });
+          }
+        } else if (response.data.actions && response.data.actions.length > 0) {
+          // Fallback: check actions if actionResults not available
+          const skillActions = response.data.actions.filter((action: any) => action.type === 'add_skill');
+          if (skillActions.length > 0) {
+            window.dispatchEvent(new CustomEvent('skillCreated', { 
+              detail: { skills: skillActions.map((a: any) => a.data.name) } 
+            }));
+            skillActions.forEach((action: any) => {
+              toast.success(`Skill '${action.data.name}' created successfully!`);
+            });
+          }
+        }
       } else {
         throw new Error('Failed to get AI response');
       }
     } catch (error: any) {
       console.error('Chat error:', error);
-      toast.error(error.message || 'Failed to send message. Please try again.');
-      // Remove user message on error
-      setMessages(prev => prev.filter(m => m.id !== userMessage.id));
+      const errorMessage = error.message || 'Failed to send message. Please try again.';
+      toast.error(errorMessage);
+      
+      // Only remove user message on network/timeout errors, not on other errors
+      // This way the user can see what they sent even if there was an error
+      if (errorMessage.includes('timeout') || errorMessage.includes('Network')) {
+        // Keep the user message but add an error message
+        const errorMsg: Message = {
+          id: Date.now() + 2,
+          type: 'ai',
+          content: `⚠️ Error: ${errorMessage}. The skill creation may still be processing. Please check the Skills section.`,
+          timestamp: formatTime()
+        };
+        setMessages(prev => [...prev, errorMsg]);
+      } else {
+        // For other errors, remove user message
+        setMessages(prev => prev.filter(m => m.id !== userMessage.id));
+      }
     } finally {
       setLoading(false);
     }
@@ -223,6 +346,15 @@ export function PersonalizedAssistant() {
             className="gap-2"
           >
             {showLinkedItems ? 'Hide' : 'Show'} Linked Items
+          </Button>
+          <Button
+            variant="outline"
+            onClick={handleClearChat}
+            className="gap-2 text-destructive hover:text-destructive hover:bg-destructive/10"
+            title="Clear Chat History"
+          >
+            <Trash2 className="w-4 h-4" />
+            Clear Chat
           </Button>
         </div>
       </div>

@@ -7,7 +7,7 @@ from fastapi import APIRouter, HTTPException
 from models import ChatRequest, ChatResponse, ChatAction
 from database import collection
 from ai_client import call_gemini_generate, gemini_embedding
-from utils import retrieve_user_context
+from utils import retrieve_user_context, determine_optimal_k, determine_context_types, summarize_long_context
 
 router = APIRouter()
 
@@ -15,21 +15,39 @@ router = APIRouter()
 async def chat(req: ChatRequest):
     """Chat with AI assistant using user context from ChromaDB"""
     try:
-        # Retrieve user context from ChromaDB (onboarding, previous chats, plans, routines, user context)
-        # Use a broader query to catch all types of context including user-edited unstructured context
-        context_query = f"user {req.user_id} context preferences notes learning skills routine daily plan schedule tasks onboarding"
-        context_docs = retrieve_user_context(req.user_id, context_query, k=10)  # Get more context for better recall
+        # OPTIMIZED: Query-specific context retrieval to prevent overcontext
+        # Use the actual user message as query for better semantic matching
+        context_query = req.message
         
-        # Prioritize context type documents (user-edited unstructured context)
-        # Sort by priority and type to ensure user context is always included
-        if context_docs:
-            context_docs.sort(key=lambda x: (
-                0 if x.get('meta', {}).get('priority') == 'high' else 1,  # High priority first
-                0 if x.get('meta', {}).get('type') == 'context' else 1,  # Context type next
-                1  # Others last
-            ))
+        # Determine optimal k based on query complexity (prevents overcontext for simple queries)
+        optimal_k = determine_optimal_k(req.message)
         
+        # Determine relevant context types based on query (prevents retrieving irrelevant types)
+        allowed_types = determine_context_types(req.message)
+        
+        # Retrieve context with anti-overfitting measures:
+        # - Similarity threshold (min_similarity=0.65) - only relevant docs
+        # - Recency weighting (20% weight) - prioritize recent context
+        # - Context length limit (2000 chars) - prevent token bloat
+        # - Type filtering - only relevant document types
+        # - Deduplication - remove similar documents
+        context_docs = retrieve_user_context(
+            req.user_id, 
+            context_query,
+            k=optimal_k,
+            min_similarity=0.65,  # Only include docs with >65% similarity
+            max_context_length=2000,  # Limit total context to prevent token bloat
+            recency_weight=0.2,  # 20% weight for recency, 80% for relevance
+            allowed_types=allowed_types,
+            deduplicate=True
+        )
+        
+        # Build context text from retrieved documents
+        # Documents are already sorted by combined_score (relevance + recency)
         context_text = "\n\n".join([d['text'] for d in context_docs]) if context_docs else ""
+        
+        # Summarize if context is too long (prevent token bloat)
+        context_text = summarize_long_context(context_text, max_length=2000)
         
         # Build conversation history string
         conversation_str = ""
@@ -54,56 +72,136 @@ async def chat(req: ChatRequest):
         first_name = req.user_name.split()[0] if req.user_name else "there"
         personalization_note = f"\n\nPERSONALIZATION: The user's name is {req.user_name}. Always use their name naturally in conversation to make it feel personal and friendly, like ChatGPT does. For example: 'Hi {first_name}!' or 'That's great, {first_name}!'" if req.user_name else ""
         
-        prompt = f"""You are Momentum, an AI-powered student productivity assistant. {name_greeting}
+        # Optimized prompt - concise and direct for faster responses
+        prompt = f"""Momentum AI Assistant. {name_greeting} Be friendly and concise.
 
-CORE BEHAVIOR:
-- Be warm, friendly, and conversational - like a helpful friend who knows the user well
-- Use the user's name ({req.user_name}) naturally throughout the conversation to personalize interactions
-- Be proactive: ask follow-up questions, offer suggestions, and show genuine interest
-- Remember context from previous conversations and reference them naturally
-{personalization_note}
+RULES:
+- Keep responses SHORT (2-3 sentences max unless complex question)
+- For skill creation: Extract info from user message, generate milestones/resources quickly
+- Always end with "Actions:" JSON array when creating/updating data
 
-DATA UPDATE INSTRUCTIONS:
-When the user asks you to UPDATE or CHANGE information (name, courses, skills, major, etc.), you MUST:
-1. Acknowledge the change warmly in your conversational response
-2. Include an "Actions:" section at the end with JSON array of actions to perform
-3. Format: 
-   Response: [your friendly conversational response confirming the change]
-   
-   Actions: [{{"type": "update_user", "data": {{"firstName": "NewName", "lastName": "NewLastName"}}}}]
+ACTIONS (include in Actions: JSON array):
+- update_user: {{"type":"update_user","data":{{"firstName":"..."}}}}
+- add_course: {{"type":"add_course","data":{{"name":"...","code":"...","credits":3}}}}
+- add_skill: {{"type":"add_skill","data":{{"name":"...","category":"Technical|Creative|Soft Skills|Business|Language|Other","level":"beginner|intermediate|advanced|expert","description":"...","goalStatement":"...","durationMonths":N,"estimatedHours":N,"startDate":"YYYY-MM-DD","endDate":"YYYY-MM-DD","milestones":[{{"name":"...","order":0}}],"resources":[{{"title":"...","type":"link|video|note","url":"...","description":"..."}}]}}}}
 
-Available action types:
-- "update_user": Update user profile fields (firstName, lastName, major, institution, year, etc.)
-- "add_course": Add a new course (data: {{"name": "Course Name", "code": "CODE", "credits": 3}})
-- "add_skill": Add a new skill (data: {{"name": "Skill Name", "category": "Category", "level": "beginner"}})
+SKILL CREATION RULES:
+- "I know X" → Simple: Create immediately with name, category, level only
 
-User Context:
-{full_context}
+- "I want to learn X" → CRITICAL: DO NOT create skill until you have ALL information!
+  * Step 1: User mentions wanting to learn → ASK questions (do NOT create skill yet)
+  * Step 2: Ask: "How much time per week? How many months? When to start?"
+  * Step 3: Wait for user to provide: hours/week, months/duration, start date
+  * Step 4: ONLY when you have ALL info → Create skill with complete data
+  * NEVER create skill twice - if skill exists, update it instead
+  
+  Required info before creating:
+  - name (from user message)
+  - category (infer from skill name)
+  - level (usually beginner for "want to learn")
+  - durationMonths (from user: "2 months", "1 month", etc.)
+  - estimatedHours (calculate: hours/week × weeks)
+  - startDate (from user: "Nov 9", "10 nov", etc. - convert to YYYY-MM-DD)
+  - endDate (calculate: startDate + durationMonths)
+  - description (brief, from goal)
+  - goalStatement (specific learning goal)
+  - milestones (3-5 progressive)
+  - resources (2-4 learning resources)
 
-Previous Conversation:
-{conversation_str}
+  If user provides partial info → Ask for missing pieces, DO NOT create yet.
+  Only create when user says "that's all", "create it", or provides complete info.
+
+DUPLICATE PREVENTION:
+- Check "Current Skills" in context - if skill name already exists, use update_skill action instead of add_skill
+- NEVER create duplicate skills with the same name
+- If user mentions learning a skill that exists → Update the existing skill with new information
+
+Context: {full_context}
+History: {conversation_str}
 
 User: {req.message}
-
 Assistant:"""
         
-        # Generate response using Gemini
-        raw_response = call_gemini_generate(prompt)
+        # Check if this is a skill creation request for faster processing
+        is_skill_creation = any(keyword in req.message.lower() for keyword in [
+            "want to learn", "learn", "add skill", "create skill", "skill to", "build", "develop"
+        ])
+        
+        # Generate response using Gemini (use fast model for skill creation)
+        raw_response = call_gemini_generate(prompt, use_fast_model=is_skill_creation)
         
         # Parse response to extract actions
         response_text = raw_response
         actions = []
         
-        # Try to extract actions from response
-        actions_match = re.search(r'Actions:\s*(\[.*?\])', raw_response, re.DOTALL)
+        # Try to extract actions from response (handle multi-line JSON with nested brackets)
+        # Look for "Actions:" followed by JSON array (handle nested brackets properly)
+        actions_match = None
+        
+        # Pattern 1: Actions: followed by JSON array (may be in code block)
+        actions_match = re.search(r'Actions:.*?```json\s*(\[.*?\])\s*```', raw_response, re.DOTALL | re.IGNORECASE)
+        if not actions_match:
+            # Pattern 2: Actions: followed by JSON array (no code block)
+            actions_match = re.search(r'Actions:\s*(\[.*?\])', raw_response, re.DOTALL)
+        if not actions_match:
+            # Pattern 3: Look for JSON array anywhere after "Actions:"
+            # Use balanced bracket matching
+            actions_pos = raw_response.find('Actions:')
+            if actions_pos != -1:
+                # Find the opening bracket after "Actions:"
+                bracket_pos = raw_response.find('[', actions_pos)
+                if bracket_pos != -1:
+                    # Count brackets to find the matching closing bracket
+                    bracket_count = 0
+                    end_pos = bracket_pos
+                    for i in range(bracket_pos, len(raw_response)):
+                        if raw_response[i] == '[':
+                            bracket_count += 1
+                        elif raw_response[i] == ']':
+                            bracket_count -= 1
+                            if bracket_count == 0:
+                                end_pos = i + 1
+                                break
+                    if bracket_count == 0:
+                        actions_str = raw_response[bracket_pos:end_pos]
+                        # Clean up and parse directly
+                        actions_str = re.sub(r'^```json\s*', '', actions_str, flags=re.IGNORECASE)
+                        actions_str = re.sub(r'^```\s*', '', actions_str)
+                        actions_str = re.sub(r'\s*```$', '', actions_str)
+                        actions_str = actions_str.strip()
+                        try:
+                            actions_json = json.loads(actions_str)
+                            actions = [ChatAction(**action) for action in actions_json]
+                            response_text = re.sub(r'\nActions:.*$', '', response_text, flags=re.DOTALL).strip()
+                            print(f"Successfully extracted {len(actions)} actions from AI response (bracket matching)")
+                        except Exception as e:
+                            print(f"Error parsing actions from bracket match: {e}")
+                            actions_match = None  # Fall through to try other patterns
+        
         if actions_match:
             try:
-                actions_json = json.loads(actions_match.group(1))
+                # Extract the JSON string from the regex match
+                actions_str = actions_match.group(1).strip()
+                # Clean up the JSON string (remove markdown code blocks if present)
+                actions_str = re.sub(r'^```json\s*', '', actions_str, flags=re.IGNORECASE)
+                actions_str = re.sub(r'^```\s*', '', actions_str)
+                actions_str = re.sub(r'\s*```$', '', actions_str)
+                actions_str = actions_str.strip()
+                
+                actions_json = json.loads(actions_str)
                 actions = [ChatAction(**action) for action in actions_json]
                 # Remove actions section from response text
                 response_text = re.sub(r'\nActions:.*$', '', response_text, flags=re.DOTALL).strip()
+                print(f"Successfully extracted {len(actions)} actions from AI response")
             except Exception as e:
                 print(f"Error parsing actions: {e}")
+                try:
+                    match_str = actions_match.group(1)
+                    print(f"Actions string (first 500 chars): {match_str[:500] if len(match_str) > 500 else match_str}")
+                except:
+                    pass
+                import traceback
+                traceback.print_exc()
         
         # Also check if user message mentions updates and try to extract them (fallback if AI doesn't return actions)
         update_keywords = ["change", "update", "set", "modify", "edit", "my name is", "call me"]

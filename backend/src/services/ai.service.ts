@@ -5,7 +5,7 @@ const AI_SERVICE_URL = process.env.AI_SERVICE_URL || 'http://localhost:8001';
 
 const http: AxiosInstance = axios.create({
   baseURL: AI_SERVICE_URL,
-  timeout: 15000
+  timeout: 120000 // 2 minutes - increased for complex skill creation with milestones/resources
 });
 
 // Types mirror FastAPI Pydantic models (subset for onboarding)

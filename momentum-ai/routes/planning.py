@@ -28,8 +28,16 @@ if os.path.exists(POLICY_MODEL_PATH):
 
 @router.post("/plan", response_model=PlanResponse)
 def plan(req: PlanRequest):
-    # 1) get context
-    context_docs = retrieve_user_context(req.user_id, query=f"{req.user_id} study notes and syllabus", k=3)
+    # 1) get context - optimized retrieval for planning queries
+    context_docs = retrieve_user_context(
+        req.user_id, 
+        query=f"study notes syllabus courses subjects planning schedule",
+        k=5,  # Get more context for planning
+        min_similarity=0.6,  # Slightly lower threshold for planning (needs broader context)
+        max_context_length=2500,  # More context allowed for planning
+        allowed_types=["plan", "context", "onboarding"],  # Planning-relevant types
+        deduplicate=True
+    )
     context_text = "\n\n".join([d['text'] for d in context_docs]) if context_docs else ""
 
     # 2) build prompt (strict JSON)

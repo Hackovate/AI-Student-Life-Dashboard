@@ -1,11 +1,22 @@
 import { useState, useEffect } from 'react';
-import { Plus, Target, TrendingUp, Sparkles, Pencil, Trash2, Check } from 'lucide-react';
+import { Plus, Target, TrendingUp, Sparkles, Pencil, Trash2, Check, AlertTriangle } from 'lucide-react';
 import { Card } from '../ui/card';
 import { Button } from '../ui/button';
 import { Progress } from '../ui/progress';
 import { Badge } from '../ui/badge';
 import { SkillModal } from '../modals/SkillModal';
 import { skillsAPI } from '@/lib/api';
+import { toast } from 'sonner';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '../ui/alert-dialog';
 
 export function Skills() {
   const [skills, setSkills] = useState<any[]>([]);
@@ -14,9 +25,23 @@ export function Skills() {
   const [skillModalOpen, setSkillModalOpen] = useState(false);
   const [selectedSkill, setSelectedSkill] = useState<any>(null);
   const [modalMode, setModalMode] = useState<'create' | 'edit'>('create');
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [skillToDelete, setSkillToDelete] = useState<{ id: string; name: string } | null>(null);
+  const [deleting, setDeleting] = useState(false);
 
   useEffect(() => {
     loadData();
+
+    // Listen for skill creation events from AI chat
+    const handleSkillCreated = () => {
+      loadData();
+    };
+
+    window.addEventListener('skillCreated', handleSkillCreated);
+
+    return () => {
+      window.removeEventListener('skillCreated', handleSkillCreated);
+    };
   }, []);
 
   const loadData = async () => {
@@ -47,15 +72,26 @@ export function Skills() {
     setSkillModalOpen(true);
   };
 
-  const handleDeleteSkill = async (skillId: string) => {
-    if (!confirm('Delete this skill? All milestones and resources will be removed.')) return;
+  const handleDeleteClick = (skill: any) => {
+    setSkillToDelete({ id: skill.id, name: skill.name });
+    setDeleteDialogOpen(true);
+  };
+
+  const handleDeleteSkill = async () => {
+    if (!skillToDelete) return;
     
+    setDeleting(true);
     try {
-      await skillsAPI.delete(skillId);
+      await skillsAPI.delete(skillToDelete.id);
       await loadData();
+      toast.success('Skill deleted successfully');
+      setDeleteDialogOpen(false);
+      setSkillToDelete(null);
     } catch (error) {
       console.error('Error deleting skill:', error);
-      alert('Failed to delete skill');
+      toast.error('Failed to delete skill. Please try again.');
+    } finally {
+      setDeleting(false);
     }
   };
 
@@ -248,22 +284,24 @@ export function Skills() {
                       <Button
                         variant="ghost"
                         size="icon"
-                        className="h-8 w-8 opacity-0 group-hover:opacity-100 transition-opacity"
+                        className="h-8 w-8 opacity-60 hover:opacity-100 transition-opacity"
                         onClick={(e: React.MouseEvent) => {
                           e.stopPropagation();
                           handleEditSkill(skill);
                         }}
+                        title="Edit skill"
                       >
                         <Pencil className="w-4 h-4" />
                       </Button>
                       <Button
                         variant="ghost"
                         size="icon"
-                        className="h-8 w-8 text-destructive opacity-0 group-hover:opacity-100 transition-opacity"
+                        className="h-8 w-8 text-destructive opacity-60 hover:opacity-100 transition-opacity"
                         onClick={(e: React.MouseEvent) => {
                           e.stopPropagation();
-                          handleDeleteSkill(skill.id);
+                          handleDeleteClick(skill);
                         }}
+                        title="Delete skill"
                       >
                         <Trash2 className="w-4 h-4" />
                       </Button>
@@ -337,6 +375,47 @@ export function Skills() {
           </div>
         )}
       </div>
+
+      {/* Delete Confirmation Dialog */}
+      <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
+        <AlertDialogContent className="sm:max-w-[425px]">
+          <AlertDialogHeader>
+            <div className="flex items-center gap-3 mb-2">
+              <div className="flex h-10 w-10 items-center justify-center rounded-full bg-destructive/10">
+                <AlertTriangle className="h-5 w-5 text-destructive" />
+              </div>
+              <AlertDialogTitle className="text-xl">Delete Skill</AlertDialogTitle>
+            </div>
+            <AlertDialogDescription className="text-base pt-2">
+              Are you sure you want to delete <span className="font-semibold text-foreground">"{skillToDelete?.name}"</span>?
+              <br />
+              <span className="text-sm text-muted-foreground mt-2 block">
+                This will permanently delete the skill, all its milestones, and learning resources. This action cannot be undone.
+              </span>
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter className="gap-2 sm:gap-0">
+            <AlertDialogCancel disabled={deleting}>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleDeleteSkill}
+              disabled={deleting}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              {deleting ? (
+                <>
+                  <span className="mr-2">Deleting...</span>
+                  <div className="h-4 w-4 animate-spin rounded-full border-2 border-current border-t-transparent" />
+                </>
+              ) : (
+                <>
+                  <Trash2 className="mr-2 h-4 w-4" />
+                  Delete Skill
+                </>
+              )}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

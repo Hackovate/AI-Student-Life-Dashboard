@@ -41,7 +41,17 @@ export const apiRequest = async <T>(
   };
 
   try {
-    const response = await fetch(`${API_BASE_URL}${endpoint}`, config);
+    // Add timeout for long-running requests (like skill creation with milestones/resources)
+    const timeout = 180000; // 3 minutes
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), timeout);
+    
+    const response = await fetch(`${API_BASE_URL}${endpoint}`, {
+      ...config,
+      signal: controller.signal
+    });
+    
+    clearTimeout(timeoutId);
     
     if (!response.ok) {
       const error = await response.json();
@@ -51,6 +61,9 @@ export const apiRequest = async <T>(
     return await response.json();
   } catch (error) {
     if (error instanceof Error) {
+      if (error.name === 'AbortError') {
+        throw new Error('Request timeout - the operation is taking longer than expected. Please try again.');
+      }
       throw error;
     }
     throw new Error('Network error occurred');
@@ -596,6 +609,16 @@ export const aiChatAPI = {
       data: {
         response: string;
         conversation_id?: string;
+        actions?: Array<{
+          type: string;
+          data: Record<string, any>;
+        }>;
+        actionResults?: Array<{
+          type: string;
+          success: boolean;
+          data?: Record<string, any>;
+          error?: string;
+        }>;
       };
     }>('/ai/chat', {
       method: 'POST',
