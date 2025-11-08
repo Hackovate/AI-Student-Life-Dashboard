@@ -392,3 +392,122 @@ def summarize_long_context(context_text: str, max_length: int = 1000) -> str:
     half = max_length // 2
     return f"{context_text[:half]}...\n[Context truncated for efficiency]\n...{context_text[-half:]}"
 
+
+def filter_syllabus_by_chapters(
+    user_id: str,
+    course_id: str,
+    query: str,
+    chapters: list = None,
+    k: int = 10
+) -> list:
+    """
+    Retrieve syllabus chunks filtered by chapter/topic keywords.
+    Extracts chapter numbers or topics from query and filters syllabus accordingly.
+    
+    Args:
+        user_id: User ID
+        course_id: Course ID
+        query: User query (may contain chapter references)
+        chapters: Optional list of chapter numbers/topics to filter by
+        k: Number of chunks to retrieve
+    
+    Returns:
+        List of filtered syllabus chunks with metadata
+    """
+    import re
+    
+    # Extract chapter numbers from query if not provided
+    if not chapters:
+        # Look for patterns like "chapter 1-5", "chapters 1, 2, 3", "chapter 1", etc.
+        chapter_patterns = [
+            r'chapter[s]?\s*(\d+(?:\s*[-–]\s*\d+)?)',  # "chapter 1-5" or "chapters 1-5"
+            r'chapter[s]?\s*(\d+(?:\s*,\s*\d+)*)',  # "chapters 1, 2, 3"
+            r'ch\.?\s*(\d+)',  # "ch. 1" or "ch 1"
+        ]
+        
+        chapters = []
+        for pattern in chapter_patterns:
+            matches = re.findall(pattern, query.lower())
+            for match in matches:
+                # Handle ranges like "1-5"
+                if '-' in match or '–' in match:
+                    range_parts = re.split(r'[-–]', match)
+                    if len(range_parts) == 2:
+                        try:
+                            start = int(range_parts[0].strip())
+                            end = int(range_parts[1].strip())
+                            chapters.extend([str(i) for i in range(start, end + 1)])
+                        except ValueError:
+                            pass
+                # Handle comma-separated
+                elif ',' in match:
+                    chapters.extend([c.strip() for c in match.split(',')])
+                else:
+                    chapters.append(match.strip())
+        
+        # Also look for explicit topic mentions
+        topic_keywords = ['topic', 'topics', 'section', 'sections', 'unit', 'units']
+        for keyword in topic_keywords:
+            if keyword in query.lower():
+                # Extract words after topic/section keywords
+                topic_match = re.search(rf'{keyword}[:]?\s*([^,\.]+)', query.lower())
+                if topic_match:
+                    topics = [t.strip() for t in topic_match.group(1).split(',')]
+                    chapters.extend(topics)
+    
+    # Remove duplicates and normalize
+    chapters = list(set([str(c).strip().lower() for c in chapters if c]))
+    
+    # Retrieve syllabus chunks for this course
+    where_clause = {
+        "$and": [
+            {"user_id": user_id},
+            {"type": "syllabus"},
+            {"course_id": course_id}
+        ]
+    }
+    
+    # Generate query embedding
+    query_embedding = gemini_embedding([query])[0]
+    query_embedding_array = np.array(query_embedding)
+    
+    # Query ChromaDB for syllabus chunks
+    results = collection.query(
+        query_embeddings=[query_embedding_array],
+        n_results=k * 2,  # Get more results to filter
+        where=where_clause
+    )
+    
+    if not results or not results['documents'] or len(results['documents'][0]) == 0:
+        return []
+    
+    # Filter chunks by chapter keywords
+    filtered_docs = []
+    for i, doc_text in enumerate(results['documents'][0]):
+        metadata = results['metadatas'][0][i] if results['metadatas'] else {}
+        distance = results['distances'][0][i] if results['distances'] else 1.0
+        
+        # If chapters specified, check if chunk mentions any of them
+        if chapters:
+            doc_lower = doc_text.lower()
+            matches_chapter = any(
+                f"chapter {ch}" in doc_lower or 
+                f"ch. {ch}" in doc_lower or
+                f"ch {ch}" in doc_lower or
+                ch in doc_lower
+                for ch in chapters
+            )
+            if not matches_chapter:
+                continue
+        
+        filtered_docs.append({
+            'text': doc_text,
+            'metadata': metadata,
+            'distance': distance,
+            'similarity': 1 - distance
+        })
+    
+    # Return top k filtered results
+    filtered_docs.sort(key=lambda x: x['similarity'], reverse=True)
+    return filtered_docs[:k]
+

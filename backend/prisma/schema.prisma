@@ -79,6 +79,7 @@ model Course {
   status        String?         @default("ongoing")
   progress      Int?             // 0-100
   attendance    Float?           // percentage 0-100
+  syllabus      String?          // Syllabus text for AI context
   createdAt     DateTime        @default(now())
   updatedAt     DateTime        @updatedAt
   user          User            @relation(fields: [userId], references: [id], onDelete: Cascade)
@@ -115,6 +116,8 @@ model Assignment {
   estimatedHours Float?
   status         String    @default("pending")
   points         Int?
+  aiGenerated    Boolean   @default(false) // Whether created by AI
+  examId         String?   // Link to exam for exam-based tasks
   createdAt      DateTime  @default(now())
   updatedAt      DateTime  @updatedAt
   course         Course    @relation(fields: [courseId], references: [id], onDelete: Cascade)

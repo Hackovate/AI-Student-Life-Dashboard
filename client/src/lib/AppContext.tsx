@@ -187,7 +187,17 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
           const savedData = localStorage.getItem('studentLifeData');
           if (savedData) {
             const data = JSON.parse(savedData);
-            setHabits(data.habits || []);
+            // Calculate completed field based on today's date for localStorage habits
+            const today = new Date().toISOString().split('T')[0];
+            const habitsWithTodayStatus = (data.habits || []).map((habit: any) => {
+              const history = habit.completionHistory || [];
+              const todayEntry = history.find((entry: any) => entry.date === today);
+              return {
+                ...habit,
+                completed: todayEntry ? todayEntry.completed : false
+              };
+            });
+            setHabits(habitsWithTodayStatus);
             setExpenses(data.expenses || []);
             setJournalEntries(data.journalEntries || []);
           }
@@ -199,7 +209,17 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         const savedData = localStorage.getItem('studentLifeData');
         if (savedData) {
           const data = JSON.parse(savedData);
-          setHabits(data.habits || []);
+          // Calculate completed field based on today's date for localStorage habits
+          const today = new Date().toISOString().split('T')[0];
+          const habitsWithTodayStatus = (data.habits || []).map((habit: any) => {
+            const history = habit.completionHistory || [];
+            const todayEntry = history.find((entry: any) => entry.date === today);
+            return {
+              ...habit,
+              completed: todayEntry ? todayEntry.completed : false
+            };
+          });
+          setHabits(habitsWithTodayStatus);
           setExpenses(data.expenses || []);
           setJournalEntries(data.journalEntries || []);
         }

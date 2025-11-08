@@ -168,7 +168,7 @@ export function Lifestyle() {
         
         <Dialog open={isAddDialogOpen} onOpenChange={setIsAddDialogOpen}>
           <DialogTrigger asChild>
-            <Button className="bg-primary hover:bg-primary/90 text-primary-foreground gap-2">
+            <Button className="bg-gradient-to-r from-violet-500 to-purple-500 hover:from-violet-600 hover:to-purple-600 text-white gap-2">
               <Plus className="w-4 h-4" />
               Add Habit
             </Button>
@@ -227,7 +227,7 @@ export function Lifestyle() {
             </div>
             <DialogFooter>
               <Button variant="outline" onClick={() => setIsAddDialogOpen(false)}>Cancel</Button>
-              <Button onClick={handleAddHabit}>Add Habit</Button>
+              <Button onClick={handleAddHabit} className="bg-gradient-to-r from-violet-500 to-purple-500 hover:from-violet-600 hover:to-purple-600 text-white">Add Habit</Button>
             </DialogFooter>
           </DialogContent>
         </Dialog>
@@ -235,12 +235,12 @@ export function Lifestyle() {
 
       {/* Wellness Score */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-2">
-        <Card className="p-3 border-border bg-gradient-to-br from-green-50 to-emerald-50 dark:from-green-950 dark:to-emerald-950 border-green-200 dark:border-green-800">
+        <Card className="p-3 border-border bg-gradient-to-br from-violet-50 to-purple-50 dark:from-violet-950 dark:to-purple-950 border-violet-200 dark:border-violet-800">
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-green-700 dark:text-green-300 text-xs mb-0.5">Overall Wellness Score</p>
+              <p className="text-violet-700 dark:text-violet-300 text-xs mb-0.5">Overall Wellness Score</p>
               <p className="text-foreground text-2xl mb-0.5">{wellnessScore}</p>
-              <div className="flex items-center gap-1 text-green-600 dark:text-green-400 text-xs">
+              <div className="flex items-center gap-1 text-violet-600 dark:text-violet-400 text-xs">
                 <TrendingUp className="w-3 h-3" />
                 <span>Keep it up!</span>
               </div>
@@ -254,7 +254,7 @@ export function Lifestyle() {
                   stroke="currentColor"
                   strokeWidth="3"
                   fill="none"
-                  className="text-green-200 dark:text-green-900"
+                  className="text-violet-200 dark:text-violet-900"
                 />
                 <circle
                   cx="20"
@@ -265,11 +265,11 @@ export function Lifestyle() {
                   fill="none"
                   strokeDasharray={`${2 * Math.PI * 16}`}
                   strokeDashoffset={`${2 * Math.PI * 16 * (1 - wellnessScore / 100)}`}
-                  className="text-green-600 dark:text-green-400"
+                  className="text-violet-600 dark:text-violet-400"
                 />
               </svg>
               <div className="absolute inset-0 flex items-center justify-center">
-                <span className="text-green-700 dark:text-green-300 text-xs">{wellnessScore}%</span>
+                <span className="text-violet-700 dark:text-violet-300 text-xs">{wellnessScore}%</span>
               </div>
             </div>
           </div>
@@ -301,7 +301,7 @@ export function Lifestyle() {
       {/* Habit Grid */}
       <div>
         <h2 className="text-foreground mb-2 text-lg">Today's Habits</h2>
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-2">
+        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-2">
           {habits.length === 0 ? (
             <Card className="p-4 border-border bg-card col-span-full text-center">
               <p className="text-muted-foreground">No habits yet. Add your first habit to get started!</p>
@@ -310,54 +310,55 @@ export function Lifestyle() {
             habits.map((habit) => (
               <Card 
                 key={habit.id} 
-                className={`p-3 border-border bg-card hover:shadow-lg transition-all group ${
-                  habit.completed ? 'border-green-200 dark:border-green-800 bg-green-50/30 dark:bg-green-950/30' : ''
+                className={`p-2 border-border bg-card hover:shadow-md transition-all group ${
+                  habit.completed ? 'border-violet-200 dark:border-violet-800 bg-violet-50/30 dark:bg-violet-950/30' : ''
                 }`}
               >
-                <div className="flex items-start justify-between mb-2">
-                  <div className={`w-12 h-12 rounded-lg bg-gradient-to-br ${habit.color} flex items-center justify-center text-white text-2xl`}>
+                <div className="flex items-start justify-between mb-1.5">
+                  <div className={`w-8 h-8 rounded-lg bg-gradient-to-br ${habit.color} flex items-center justify-center text-white text-lg flex-shrink-0`}>
                     {habit.icon}
                   </div>
-                  <div className="flex items-center gap-1">
+                  <div className="flex items-center gap-0.5">
                     <Button
                       variant="ghost"
                       size="icon"
-                      className="opacity-0 group-hover:opacity-100 transition-opacity h-8 w-8"
+                      className="opacity-0 group-hover:opacity-100 transition-opacity h-6 w-6"
                       onClick={() => handleEditClick(habit)}
                     >
-                      <Edit className="w-4 h-4 text-primary" />
+                      <Edit className="w-3 h-3 text-violet-600" />
                     </Button>
                     <Button
                       variant="ghost"
                       size="icon"
-                      className="opacity-0 group-hover:opacity-100 transition-opacity h-8 w-8"
+                      className="opacity-0 group-hover:opacity-100 transition-opacity h-6 w-6"
                       onClick={() => handleDeleteClick(habit.id)}
                     >
-                      <Trash2 className="w-4 h-4 text-destructive" />
+                      <Trash2 className="w-3 h-3 text-destructive" />
                     </Button>
                   </div>
                 </div>
-                <h3 className="text-foreground font-semibold mb-0.5 text-sm">{habit.name}</h3>
-                <p className="text-muted-foreground text-xs mb-2">{habit.target} • {habit.time}</p>
+                <h3 className="text-foreground font-semibold mb-0.5 text-sm leading-tight">{habit.name}</h3>
+                <p className="text-muted-foreground text-xs mb-1.5 leading-tight">{habit.target} • {habit.time}</p>
 
-                <div className="flex items-center justify-between pt-2 border-t border-border mb-2">
+                <div className="flex items-center justify-between pt-1.5 border-t border-border mb-1.5">
                   <div className="flex items-center gap-1">
-                    <span className="text-orange-500 text-base">🔥</span>
-                    <span className="text-sm text-muted-foreground font-medium">{habit.streak} day streak</span>
+                    <span className="text-orange-500 text-sm">🔥</span>
+                    <span className="text-xs text-muted-foreground font-medium">{habit.streak} day streak</span>
                   </div>
                 </div>
 
                 <Button
                   onClick={() => handleToggleHabit(habit.id)}
-                  className={`w-full ${
+                  size="sm"
+                  className={`w-full h-8 text-xs ${
                     habit.completed 
-                      ? 'bg-green-500 hover:bg-green-600 text-white' 
-                      : 'bg-primary hover:bg-primary/90 text-primary-foreground'
+                      ? 'bg-gradient-to-r from-violet-500 to-purple-500 hover:from-violet-600 hover:to-purple-600 text-white' 
+                      : 'bg-gradient-to-r from-violet-500 to-purple-500 hover:from-violet-600 hover:to-purple-600 text-white'
                   }`}
                 >
                   {habit.completed ? (
                     <>
-                      <CheckCircle2 className="w-4 h-4 mr-2" />
+                      <CheckCircle2 className="w-3 h-3 mr-1" />
                       Completed Today
                     </>
                   ) : (
@@ -428,7 +429,7 @@ export function Lifestyle() {
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setIsEditDialogOpen(false)}>Cancel</Button>
-            <Button onClick={handleEditSave}>Save Changes</Button>
+            <Button onClick={handleEditSave} className="bg-gradient-to-r from-violet-500 to-purple-500 hover:from-violet-600 hover:to-purple-600 text-white">Save Changes</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
@@ -459,28 +460,28 @@ export function Lifestyle() {
             const percentage = day.total > 0 ? (day.completed / day.total) * 100 : 0;
             return (
               <div key={index} className="text-center">
-                <p className={`text-xs mb-1 ${day.isToday ? 'text-primary font-semibold' : 'text-muted-foreground'}`}>
+                <p className={`text-xs mb-1 ${day.isToday ? 'text-violet-600 font-semibold' : 'text-muted-foreground'}`}>
                   {day.day}
                 </p>
                 <div className={`h-16 bg-muted rounded-lg flex flex-col justify-end overflow-hidden ${
-                  day.isToday ? 'ring-2 ring-primary' : ''
+                  day.isToday ? 'ring-2 ring-violet-500' : ''
                 }`}>
                   <div 
                     className={`transition-all ${
                       percentage === 100 
-                        ? 'bg-green-500' 
+                        ? 'bg-gradient-to-t from-violet-600 to-purple-600' 
                         : percentage >= 50 
-                          ? 'bg-primary' 
-                          : 'bg-orange-400'
+                          ? 'bg-gradient-to-t from-violet-500 to-purple-500' 
+                          : 'bg-gradient-to-t from-violet-400 to-purple-400'
                     }`}
                     style={{ height: `${percentage}%` }}
                   ></div>
                 </div>
-                <p className={`text-xs mt-0.5 ${day.isToday ? 'text-primary font-semibold' : 'text-foreground'}`}>
+                <p className={`text-xs mt-0.5 ${day.isToday ? 'text-violet-600 font-semibold' : 'text-foreground'}`}>
                   {day.completed}/{day.total}
                 </p>
                 {day.isToday && (
-                  <p className="text-xs text-primary mt-0.5">Today</p>
+                  <p className="text-xs text-violet-600 mt-0.5">Today</p>
                 )}
               </div>
             );

@@ -176,6 +176,17 @@ export const coursesAPI = {
   createExam: async (courseId: string, data: any) => apiRequest<any>(`/academics/${courseId}/exams`, { method: 'POST', body: JSON.stringify(data) }),
   updateExam: async (id: string, data: any) => apiRequest<any>(`/academics/exams/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
   deleteExam: async (id: string) => apiRequest<{ message: string }>(`/academics/exams/${id}`, { method: 'DELETE' }),
+
+  // Syllabus endpoints
+  updateSyllabus: async (courseId: string, syllabus: string) => 
+    apiRequest<any>(`/academics/${courseId}/syllabus`, { 
+      method: 'PUT', 
+      body: JSON.stringify({ syllabus }) 
+    }),
+  deleteSyllabus: async (courseId: string) => 
+    apiRequest<{ message: string; course: any }>(`/academics/${courseId}/syllabus`, { 
+      method: 'DELETE' 
+    }),
 };
 
 // Attendance API

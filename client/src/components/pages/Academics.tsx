@@ -11,6 +11,7 @@ import { ExamModal } from '../modals/ExamModal';
 import { AssignmentDialog } from '../modals/AssignmentDialog';
 import { ScheduleModal } from '../modals/ScheduleModal';
 import { AttendanceModal } from '../modals/AttendanceModal';
+import { SyllabusModal } from '../modals/SyllabusModal';
 
 export function Academics() {
   const { user: authUser } = useAuth();
@@ -25,6 +26,8 @@ export function Academics() {
   const [assignmentModalOpen, setAssignmentModalOpen] = useState(false);
   const [scheduleModalOpen, setScheduleModalOpen] = useState(false);
   const [attendanceModalOpen, setAttendanceModalOpen] = useState(false);
+  const [syllabusModalOpen, setSyllabusModalOpen] = useState(false);
+  const [syllabusLoading, setSyllabusLoading] = useState(false);
 
   // Edit/Create Mode
   const [modalMode, setModalMode] = useState<'create' | 'edit'>('create');
@@ -84,20 +87,33 @@ export function Academics() {
   const loadData = async () => {
     try {
       const courses = await coursesAPI.getAll();
-      setSubjects(courses.map((c: any, idx: number) => ({
-        id: c.id,
-        name: c.courseName,
-        code: c.courseCode || '',
-        description: c.description || '',
-        progress: c.progress ?? 0,
-        grade: c.grade ?? '',
-        color: ['from-blue-500 to-cyan-500','from-violet-500 to-purple-500','from-green-500 to-emerald-500','from-orange-500 to-red-500'][idx % 4],
-        nextClass: c.classSchedule && c.classSchedule.length > 0 ? `${c.classSchedule[0].day} ${c.classSchedule[0].time}` : 'TBD',
-        assignments: c.assignments ? c.assignments.length : 0,
-        classSchedule: c.classSchedule || [],
-        assignmentsList: c.assignments || [],
-        examsList: c.exams || []
-      })));
+      setSubjects(courses.map((c: any, idx: number) => {
+        // Find pending assignments and get earliest due date
+        const pendingAssignments = (c.assignments || []).filter((a: any) => 
+          a.status === 'pending' || !a.status
+        );
+        const assignmentsWithDueDate = pendingAssignments.filter((a: any) => a.dueDate);
+        const sortedByDueDate = assignmentsWithDueDate.sort((a: any, b: any) => 
+          new Date(a.dueDate).getTime() - new Date(b.dueDate).getTime()
+        );
+        const nextDueDate = sortedByDueDate.length > 0 ? sortedByDueDate[0].dueDate : null;
+        
+        return {
+          id: c.id,
+          name: c.courseName,
+          code: c.courseCode || '',
+          description: c.description || '',
+          progress: c.progress ?? 0,
+          grade: c.grade ?? '',
+          color: ['from-blue-500 to-cyan-500','from-violet-500 to-purple-500','from-green-500 to-emerald-500','from-orange-500 to-red-500'][idx % 4],
+          nextClass: c.classSchedule && c.classSchedule.length > 0 ? `${c.classSchedule[0].day} ${c.classSchedule[0].time}` : 'TBD',
+          assignments: c.assignments ? c.assignments.length : 0,
+          classSchedule: c.classSchedule || [],
+          assignmentsList: c.assignments || [],
+          examsList: c.exams || [],
+          nextDueDate: nextDueDate
+        };
+      }));
 
       // build upcoming exams list
       const exams: any[] = [];
@@ -277,6 +293,35 @@ export function Academics() {
     }
   };
 
+  // Syllabus Handlers
+  const handleSaveSyllabus = async (syllabus: string) => {
+    if (!selectedCourse) return;
+    setSyllabusLoading(true);
+    try {
+      await coursesAPI.updateSyllabus(selectedCourse.id, syllabus);
+      await loadData(); // Reload to get updated syllabus
+    } catch (err) {
+      console.error('Save syllabus failed', err);
+      alert('Failed to save syllabus');
+    } finally {
+      setSyllabusLoading(false);
+    }
+  };
+
+  const handleDeleteSyllabus = async () => {
+    if (!selectedCourse) return;
+    setSyllabusLoading(true);
+    try {
+      await coursesAPI.deleteSyllabus(selectedCourse.id);
+      await loadData(); // Reload to get updated syllabus
+    } catch (err) {
+      console.error('Delete syllabus failed', err);
+      alert('Failed to delete syllabus');
+    } finally {
+      setSyllabusLoading(false);
+    }
+  };
+
   // Schedule Handlers
   const handleAddSchedule = (courseId: string) => {
     setModalMode('create');
@@ -392,6 +437,20 @@ export function Academics() {
         courseName={selectedCourse?.name || ''}
         onAttendanceUpdate={loadData}
       />
+      {selectedCourse && (
+        <SyllabusModal
+          open={syllabusModalOpen}
+          onClose={() => {
+            setSyllabusModalOpen(false);
+            setSelectedCourse(null);
+          }}
+          onSave={handleSaveSyllabus}
+          onDelete={handleDeleteSyllabus}
+          courseName={selectedCourse.name || selectedCourse.courseName}
+          existingSyllabus={selectedCourse.syllabus}
+          loading={syllabusLoading}
+        />
+      )}
 
       {/* Header */}
       <div className="flex items-center justify-between mb-4">
@@ -521,6 +580,18 @@ export function Academics() {
                       className="justify-center"
                       onClick={() => {
                         setSelectedCourse(subject);
+                        setSyllabusModalOpen(true);
+                      }}
+                    >
+                      Syllabus
+                    </Button>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      className="justify-center"
+                      onClick={() => {
+                        setSelectedCourse(subject);
                         setAttendanceModalOpen(true);
                       }}
                     >
@@ -533,7 +604,11 @@ export function Academics() {
                       <div className="flex flex-wrap items-center gap-3 text-xs text-muted-foreground">
                         <span className="flex items-center gap-1.5">
                           <Clock className="w-3.5 h-3.5" />
-                          <span className="font-medium text-foreground">{subject.nextClass}</span>
+                          <span className="font-medium text-foreground">
+                            {subject.nextDueDate 
+                              ? `Due: ${new Date(subject.nextDueDate).toLocaleDateString()}`
+                              : subject.nextClass}
+                          </span>
                         </span>
                         {subject.assignments > 0 && (
                           <span>Pending tasks: <span className="font-semibold text-foreground">{subject.assignments}</span></span>
@@ -594,65 +669,6 @@ export function Academics() {
                         </div>
                       )}
 
-                      {subject.assignmentsList && subject.assignmentsList.length > 0 && (
-                        <div className="space-y-2">
-                          <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Assignments</p>
-                          <div className="space-y-1.5">
-                            {subject.assignmentsList.map((assignment: any) => (
-                              <div
-                                key={assignment.id}
-                                className="rounded-lg border border-border/60 px-3 py-2 text-xs"
-                              >
-                                <div className="flex items-center justify-between gap-2">
-                                  <span className="text-sm font-medium text-foreground truncate">
-                                    {assignment.title}
-                                  </span>
-                                  <Badge
-                                    variant={assignment.status === 'completed' ? 'default' : 'secondary'}
-                                    className="text-[0.65rem] capitalize"
-                                  >
-                                    {assignment.status}
-                                  </Badge>
-                                </div>
-                                <div className="flex flex-wrap items-center gap-3 mt-1 text-muted-foreground">
-                                  {assignment.dueDate && (
-                                    <span>
-                                      Due {new Date(assignment.dueDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
-                                    </span>
-                                  )}
-                                  {assignment.estimatedHours && (
-                                    <span>Time {assignment.estimatedHours}h</span>
-                                  )}
-                                </div>
-                                <div className="mt-2 flex items-center justify-end gap-1">
-                                  <Button
-                                    variant="ghost"
-                                    size="icon"
-                                    className="h-7 w-7"
-                                    onClick={() => {
-                                      setSelectedCourse(subject);
-                                      setAssignmentModalOpen(true);
-                                      handleEditAssignment(assignment);
-                                    }}
-                                    aria-label="Edit assignment"
-                                  >
-                                    <Pencil className="w-3 h-3" />
-                                  </Button>
-                                  <Button
-                                    variant="ghost"
-                                    size="icon"
-                                    className="h-7 w-7 text-destructive"
-                                    onClick={() => handleDeleteAssignment(assignment.id)}
-                                    aria-label="Delete assignment"
-                                  >
-                                    <Trash2 className="w-3 h-3" />
-                                  </Button>
-                                </div>
-                              </div>
-                            ))}
-                          </div>
-                        </div>
-                      )}
 
                       {subject.examsList && subject.examsList.length > 0 && (
                         <div className="space-y-2">

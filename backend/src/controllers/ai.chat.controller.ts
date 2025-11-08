@@ -576,6 +576,28 @@ export const chat = async (req: Request, res: Response) => {
             if (!course) {
               throw new Error(`Course not found: ${action.data.courseName || action.data.courseId}`);
             }
+            
+            // Find exam if examId is provided or try to match by course and date
+            let examId = action.data.examId || null;
+            if (!examId && action.data.dueDate) {
+              // Try to find exam for this course around the due date (within 7 days)
+              const dueDate = new Date(action.data.dueDate);
+              const exam = await prisma.exam.findFirst({
+                where: {
+                  courseId: course.id,
+                  date: {
+                    gte: new Date(dueDate.getTime() - 7 * 24 * 60 * 60 * 1000), // 7 days before
+                    lte: new Date(dueDate.getTime() + 7 * 24 * 60 * 60 * 1000)  // 7 days after
+                  }
+                },
+                orderBy: { date: 'asc' }
+              });
+              if (exam) {
+                examId = exam.id;
+              }
+            }
+            
+            // Mark as AI-generated if this is from AI chat (which it always is when coming from this controller)
             const assignment = await prisma.assignment.create({
               data: {
                 courseId: course.id,
@@ -586,6 +608,8 @@ export const chat = async (req: Request, res: Response) => {
                 estimatedHours: action.data.estimatedHours ? parseFloat(action.data.estimatedHours.toString()) : null,
                 status: action.data.status || 'pending',
                 points: action.data.points ? parseInt(action.data.points.toString()) : null,
+                aiGenerated: true, // All assignments from AI chat are AI-generated
+                examId: examId,
               }
             });
             console.log('Assignment added via AI:', assignment);

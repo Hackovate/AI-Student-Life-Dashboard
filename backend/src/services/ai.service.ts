@@ -88,22 +88,6 @@ export async function chatAI(payload: ChatRequest): Promise<ChatResponse> {
   return data;
 }
 
-// AI Insights for dashboard
-export interface InsightsRequest {
-  user_id: string;
-  habits: any[];
-  lifestyle_data: any[];
-  journal_entries: any[];
-}
-
-export interface InsightsResponse {
-  insights: string[];
-}
-
-export async function getAIInsights(payload: InsightsRequest): Promise<InsightsResponse> {
-  const { data } = await http.post<InsightsResponse>('/insights', payload);
-  return data;
-}
 
 // Skill Generation
 export interface SkillSuggestionRequest {
@@ -158,6 +142,41 @@ export async function getSkillSuggestions(payload: SkillSuggestionRequest): Prom
 export async function generateSkillRoadmap(payload: SkillRoadmapRequest): Promise<SkillRoadmapResponse> {
   const { data } = await http.post<SkillRoadmapResponse>('/generate-skill-roadmap', payload);
   return data;
+}
+
+// Syllabus sync functions
+export async function syncSyllabusToChromaDB(userId: string, courseId: string, syllabusText: string): Promise<void> {
+  try {
+    // Use the special syllabus ingest endpoint which handles deletion automatically
+    await http.post('/ingest/syllabus', {
+      user_id: userId,
+      docs: [{
+        id: `syllabus_${courseId}`,
+        text: syllabusText,
+        meta: {
+          type: 'syllabus',
+          course_id: courseId,
+          timestamp: new Date().toISOString()
+        }
+      }]
+    });
+  } catch (error) {
+    console.error('Error syncing syllabus to ChromaDB:', error);
+    throw error;
+  }
+}
+
+export async function deleteSyllabusFromChromaDB(userId: string, courseId: string): Promise<void> {
+  try {
+    // Call AI service to delete syllabus chunks (user_id as query parameter)
+    await http.delete(`/ingest/syllabus/${courseId}?user_id=${userId}`);
+  } catch (error: any) {
+    // If endpoint doesn't exist yet, that's okay - we'll create it
+    if (error.response?.status !== 404) {
+      console.error('Error deleting syllabus from ChromaDB:', error);
+      throw error;
+    }
+  }
 }
 
 

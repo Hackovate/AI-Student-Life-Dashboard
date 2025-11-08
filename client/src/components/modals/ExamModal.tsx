@@ -72,7 +72,7 @@ export function ExamModal({ open, onClose, onSave, exam, mode, courses, selected
                 <SelectContent>
                   {courses.map((course) => (
                     <SelectItem key={course.id} value={course.id}>
-                      {course.name} ({course.code})
+                      {course.name || course.courseName}
                     </SelectItem>
                   ))}
                 </SelectContent>

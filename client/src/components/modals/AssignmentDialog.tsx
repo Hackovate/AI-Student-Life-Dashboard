@@ -42,7 +42,6 @@ export function AssignmentDialog({
   });
 
   const [activeTab, setActiveTab] = useState('add');
-  const [editingAssignment, setEditingAssignment] = useState<any>(null);
 
   useEffect(() => {
     // Reset form when dialog opens/closes
@@ -55,7 +54,6 @@ export function AssignmentDialog({
         estimatedHours: '',
         status: 'pending',
       });
-      setEditingAssignment(null);
       setActiveTab('add');
     } else if (open && editingAssignment) {
       // If editing assignment is passed from parent, populate form
@@ -83,29 +81,16 @@ export function AssignmentDialog({
       estimatedHours: '',
       status: 'pending',
     });
-    setEditingAssignment(null);
     // Switch to assignments tab to see the new/updated assignment
     setActiveTab('list');
   };
 
   const handleEditClick = (assignment: any) => {
-    setEditingAssignment(assignment);
+    // Notify parent to set this assignment for editing
+    onEdit(assignment);
     setActiveTab('add');
-    setFormData({
-      title: assignment.title || '',
-      description: assignment.description || '',
-      startDate: assignment.startDate ? new Date(assignment.startDate).toISOString().split('T')[0] : '',
-      dueDate: assignment.dueDate ? new Date(assignment.dueDate).toISOString().split('T')[0] : '',
-      estimatedHours: assignment.estimatedHours?.toString() || '',
-      status: assignment.status || 'pending',
-    });
+    // The useEffect will populate the form when editingAssignment prop changes
   };
-
-  // Listen for edit requests from parent
-  useEffect(() => {
-    // This will be triggered when parent calls onEdit
-    // The parent should set the assignment in selectedAssignment state
-  }, []);
 
   const handleDeleteClick = (assignmentId: string) => {
     if (confirm('Delete this assignment?')) {
@@ -250,7 +235,7 @@ export function AssignmentDialog({
                   >
                     <div className="flex items-start justify-between gap-3">
                       <div className="flex-1 min-w-0">
-                        <div className="flex items-center gap-2 mb-2">
+                        <div className="flex items-center gap-2 mb-2 flex-wrap">
                           <h4 className="text-sm font-semibold text-foreground truncate">
                             {assignment.title}
                           </h4>
@@ -260,6 +245,14 @@ export function AssignmentDialog({
                           >
                             {assignment.status}
                           </Badge>
+                          {assignment.aiGenerated && (
+                            <Badge
+                              variant="outline"
+                              className="text-[0.65rem] shrink-0 bg-primary/10 text-primary border-primary/20"
+                            >
+                              AI Generated
+                            </Badge>
+                          )}
                         </div>
                         {assignment.description && (
                           <p className="text-xs text-muted-foreground mb-2 line-clamp-2">

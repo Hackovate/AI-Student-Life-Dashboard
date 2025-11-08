@@ -10,17 +10,17 @@ router = APIRouter()
 class InsightsRequest(BaseModel):
     user_id: str
     habits: List[Dict[str, Any]]
-    lifestyle_data: List[Dict[str, Any]]
-    journal_entries: List[Dict[str, Any]]
+    finances: Dict[str, Any]
+    skills: List[Dict[str, Any]]
 
 class InsightsResponse(BaseModel):
     insights: List[str]
 
 @router.post("/insights", response_model=InsightsResponse)
 async def get_insights(req: InsightsRequest):
-    """Generate AI-powered insights based on habits, lifestyle, and journal data"""
+    """Generate AI-powered insights based on finances, habits, and skills data"""
     try:
-        # Build context from data
+        # Build context from habits data
         habits_summary = []
         for habit in req.habits:
             completion_history = habit.get('completionHistory', [])
@@ -41,54 +41,60 @@ async def get_insights(req: InsightsRequest):
                 'target': habit.get('target', 'Daily')
             })
 
-        # Analyze lifestyle patterns
-        lifestyle_summary = {
-            'avg_sleep': 0,
-            'avg_exercise': 0,
-            'avg_stress': 0,
-            'total_records': len(req.lifestyle_data)
-        }
-        if req.lifestyle_data:
-            sleep_hours = [d.get('sleepHours') for d in req.lifestyle_data if d.get('sleepHours')]
-            exercise_mins = [d.get('exerciseMinutes') for d in req.lifestyle_data if d.get('exerciseMinutes')]
-            stress_levels = [d.get('stressLevel') for d in req.lifestyle_data if d.get('stressLevel')]
-            
-            lifestyle_summary['avg_sleep'] = round(sum(sleep_hours) / len(sleep_hours), 1) if sleep_hours else 0
-            lifestyle_summary['avg_exercise'] = round(sum(exercise_mins) / len(exercise_mins), 0) if exercise_mins else 0
-            lifestyle_summary['avg_stress'] = round(sum(stress_levels) / len(stress_levels), 1) if stress_levels else 0
+        # Analyze finances
+        finances = req.finances or {}
+        total_income = finances.get('totalIncome', 0)
+        total_expenses = finances.get('totalExpenses', 0)
+        net_savings = finances.get('netSavings', 0)
+        expense_by_category = finances.get('expenseByCategory', {})
 
-        # Analyze mood trends
-        mood_summary = {}
-        for entry in req.journal_entries:
-            mood = entry.get('mood', 'neutral')
-            mood_summary[mood] = mood_summary.get(mood, 0) + 1
+        # Analyze skills
+        skills_summary = []
+        for skill in req.skills:
+            milestones = skill.get('milestones', [])
+            if isinstance(milestones, str):
+                try:
+                    milestones = json.loads(milestones)
+                except:
+                    milestones = []
+            completed_milestones = sum(1 for m in milestones if m.get('completed', False)) if isinstance(milestones, list) else 0
+            total_milestones = len(milestones) if isinstance(milestones, list) else 0
+            
+            skills_summary.append({
+                'name': skill.get('name', 'Unknown'),
+                'category': skill.get('category', 'General'),
+                'level': skill.get('level', 'beginner'),
+                'progress': skill.get('progress', 0),
+                'completed_milestones': completed_milestones,
+                'total_milestones': total_milestones,
+                'estimated_hours': skill.get('estimatedHours', 0)
+            })
 
         # Build prompt for AI
-        prompt = f"""You are an AI assistant analyzing user habits, lifestyle, and journal data to provide personalized insights and suggestions.
+        prompt = f"""You are an AI assistant analyzing user finances, habits, and skills to provide personalized insights and suggestions.
+
+FINANCES (this month):
+- Total Income: {total_income} BDT
+- Total Expenses: {total_expenses} BDT
+- Net Savings: {net_savings} BDT
+- Spending by Category: {json.dumps(expense_by_category, indent=2)}
 
 HABITS DATA:
 {json.dumps(habits_summary, indent=2)}
 
-LIFESTYLE DATA (last 30 days):
-- Average Sleep: {lifestyle_summary['avg_sleep']} hours
-- Average Exercise: {lifestyle_summary['avg_exercise']} minutes
-- Average Stress Level: {lifestyle_summary['avg_stress']}/10
-- Total Records: {lifestyle_summary['total_records']}
-
-MOOD TRENDS (from journal entries):
-{json.dumps(mood_summary, indent=2)}
+SKILLS DATA:
+{json.dumps(skills_summary, indent=2)}
 
 TASK:
-Analyze the data above and generate 3-5 personalized, actionable insights. Focus on:
-1. Habit consistency and streaks (celebrate wins, identify areas for improvement)
-2. Correlation between lifestyle factors (sleep, exercise, stress) and mood/productivity
-3. Specific, actionable suggestions (e.g., "You've completed morning meditation 7 days in a row! Keep it up!" or "You sleep better when you exercise. Try adding 20min walks on days you feel stressed.")
-4. Patterns that could improve user's well-being and productivity
+Analyze the data above and generate EXACTLY 3 personalized, actionable insights. Focus ONLY on:
+1. Financial performance: savings, spending patterns, budget management
+2. Habit consistency and streaks: celebrate wins, identify areas for improvement
+3. Skills progress and performance: learning consistency, milestone completion, skill development
 
-Return ONLY a JSON array of insight strings (no markdown, no explanations, just the insights):
-["insight 1", "insight 2", "insight 3", ...]
+Return ONLY a JSON array with EXACTLY 3 insight strings (no markdown, no explanations, just the insights):
+["insight 1", "insight 2", "insight 3"]
 
-Keep each insight concise (1-2 sentences max) and actionable."""
+Keep each insight concise (1-2 sentences max) and actionable. Focus on performance, consistency, and progress."""
 
         # Generate insights using Gemini
         raw_response = call_gemini_generate(prompt, use_fast_model=False)
@@ -103,23 +109,15 @@ Keep each insight concise (1-2 sentences max) and actionable."""
             else:
                 # Fallback: split by lines and clean
                 insights = [line.strip().strip('"').strip("'") for line in raw_response.split('\n') if line.strip() and not line.strip().startswith('#')]
-                insights = [insight for insight in insights if insight][:5]
+                insights = [insight for insight in insights if insight][:3]
         except Exception as e:
             print(f"Error parsing insights JSON: {e}")
-            # Fallback insights
-            insights = [
-                "Keep tracking your habits to see patterns over time!",
-                "Regular exercise and good sleep can improve your mood and productivity.",
-                "Consistency is key - small daily actions lead to big results."
-            ]
+            # Return empty array if parsing fails
+            insights = []
 
-        # Ensure we have 3-5 insights
-        if len(insights) < 3:
-            insights.extend([
-                "Track your progress daily to build momentum!",
-                "Remember: small consistent actions create lasting change."
-            ])
-        insights = insights[:5]
+        # Limit to exactly 3 insights (replace oldest if more than 3)
+        # Only return insights if we have valid ones (no fallbacks)
+        insights = insights[:3] if insights else []
 
         return InsightsResponse(insights=insights)
         
@@ -127,10 +125,6 @@ Keep each insight concise (1-2 sentences max) and actionable."""
         print(f"Insights error: {e}")
         import traceback
         traceback.print_exc()
-        # Return default insights on error
-        return InsightsResponse(insights=[
-            "Keep tracking your habits to see patterns over time!",
-            "Regular exercise and good sleep can improve your mood and productivity.",
-            "Consistency is key - small daily actions lead to big results."
-        ])
+        # Return empty insights on error
+        return InsightsResponse(insights=[])
 

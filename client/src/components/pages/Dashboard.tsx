@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { CheckCircle2, Wallet, Plus, Sparkles, TrendingUp, BookOpen, Target } from 'lucide-react';
+import { CheckCircle2, Wallet, Plus, TrendingUp, BookOpen, Target } from 'lucide-react';
 import { StatCard } from '../StatCard';
 import { Card } from '../ui/card';
 import { Button } from '../ui/button';
@@ -18,7 +18,6 @@ import {
   skillsAPI,
   authAPI,
   journalAPI,
-  apiRequest
 } from '../../lib/api';
 import { toast } from 'sonner';
 
@@ -45,8 +44,6 @@ export function Dashboard({ onNavigate }: DashboardProps = {}) {
   const [monthlyBudgets, setMonthlyBudgets] = useState<any[]>([]);
   const [skills, setSkills] = useState<any[]>([]);
   const [currentTime, setCurrentTime] = useState(new Date());
-  const [aiInsights, setAiInsights] = useState<string[]>([]);
-  const [insightsLoading, setInsightsLoading] = useState(false);
   
   // Modal states
   const [isTaskModalOpen, setIsTaskModalOpen] = useState(false);
@@ -79,7 +76,6 @@ export function Dashboard({ onNavigate }: DashboardProps = {}) {
 
   useEffect(() => {
     loadDashboardData();
-    loadAIInsights();
     
     // Force immediate time update
     setCurrentTime(new Date());
@@ -89,19 +85,9 @@ export function Dashboard({ onNavigate }: DashboardProps = {}) {
       setCurrentTime(new Date());
     }, 60000); // Update every minute
 
-    // Listen for data changes to refresh insights (force refresh when data changes)
-    const handleDataChange = () => {
-      loadAIInsights(true); // Force refresh when user adds new data
-    };
-    window.addEventListener('habitCreated', handleDataChange);
-    window.addEventListener('lifestyleCreated', handleDataChange);
-    window.addEventListener('journalCreated', handleDataChange);
-
+    // Insights are cached for 24 hours - no need to refresh on data changes
     return () => {
       clearInterval(timeInterval);
-      window.removeEventListener('habitCreated', handleDataChange);
-      window.removeEventListener('lifestyleCreated', handleDataChange);
-      window.removeEventListener('journalCreated', handleDataChange);
     };
   }, []);
 
@@ -246,7 +232,7 @@ export function Dashboard({ onNavigate }: DashboardProps = {}) {
   // Debug: Log current time
   console.log('Current hour:', currentHour, 'Greeting:', greeting);
 
-  // Calculate stats from real data
+  // Calculate stats from real data with proper error handling
   const completedTasks = tasks.filter(t => t.status === 'completed' || t.status === 'done').length;
   const totalTasks = tasks.length;
   const taskCompletionRate = totalTasks > 0 ? Math.round((completedTasks / totalTasks) * 100) : 0;
@@ -254,22 +240,29 @@ export function Dashboard({ onNavigate }: DashboardProps = {}) {
   // Calculate active courses and average progress
   const activeCourses = courses.filter(c => c.status === 'ongoing' || c.status === 'active');
   const avgCourseProgress = activeCourses.length > 0 
-    ? Math.round(activeCourses.reduce((sum, c) => sum + (c.progress || 0), 0) / activeCourses.length) 
+    ? Math.round(activeCourses.reduce((sum, c) => sum + (Number(c.progress) || 0), 0) / activeCourses.length) 
     : 0;
 
   // Calculate savings
   const activeSavingsGoals = savingsGoals.filter(g => g.status === 'active');
-  const totalSavingsGoal = activeSavingsGoals.reduce((sum, g) => sum + g.targetAmount, 0);
-  const currentSavings = activeSavingsGoals.reduce((sum, g) => sum + (g.currentAmount || 0), 0);
+  const totalSavingsGoal = activeSavingsGoals.reduce((sum, g) => sum + (Number(g.targetAmount) || 0), 0);
+  const currentSavings = activeSavingsGoals.reduce((sum, g) => sum + (Number(g.currentAmount) || 0), 0);
 
   // Calculate budget
   const totalMonthlyBudget = monthlyBudgets
     .filter(b => b.status === 'active')
-    .reduce((sum, b) => sum + b.targetAmount, 0);
+    .reduce((sum, b) => sum + (Number(b.targetAmount) || 0), 0);
 
-  // Calculate skills progress
+  // Calculate skills progress - use progress field, not level
   const avgSkillProgress = skills.length > 0
-    ? Math.round(skills.reduce((sum, s) => sum + parseInt(s.level || '0'), 0) / skills.length)
+    ? Math.round(skills.reduce((sum, s) => {
+        // Try to get progress from various possible fields
+        const progress = Number(s.progress) || 
+                        (s.milestones && s.milestones.length > 0 
+                          ? Math.round((s.milestones.filter((m: any) => m.completed).length / s.milestones.length) * 100)
+                          : 0);
+        return sum + (isNaN(progress) ? 0 : progress);
+      }, 0) / skills.length)
     : 0;
 
   const stats = [
@@ -299,7 +292,7 @@ export function Dashboard({ onNavigate }: DashboardProps = {}) {
       value: skills.length.toString(),
       icon: Target,
       gradient: "bg-gradient-to-br from-orange-500 to-red-500",
-      subtext: `${avgSkillProgress}% avg progress`
+      subtext: isNaN(avgSkillProgress) ? '0% avg progress' : `${avgSkillProgress}% avg progress`
     }
   ];
 
@@ -322,117 +315,6 @@ export function Dashboard({ onNavigate }: DashboardProps = {}) {
     }
   };
 
-  const loadAIInsights = async (forceRefresh = false) => {
-    try {
-      const CACHE_KEY = 'momentum_ai_insights_cache';
-      const CACHE_DURATION = 24 * 60 * 60 * 1000; // 24 hours in milliseconds
-      
-      // Check cache first (unless force refresh)
-      if (!forceRefresh) {
-        const cached = localStorage.getItem(CACHE_KEY);
-        if (cached) {
-          try {
-            const { insights, timestamp } = JSON.parse(cached);
-            const now = Date.now();
-            const age = now - timestamp;
-            
-            // If cache is less than 24 hours old, use it
-            if (age < CACHE_DURATION && insights && Array.isArray(insights) && insights.length > 0) {
-              setAiInsights(insights);
-              return; // Use cached insights, no API call needed
-            }
-          } catch (e) {
-            console.error('Error parsing cached insights:', e);
-            // Continue to fetch new insights if cache is invalid
-          }
-        }
-      }
-
-      // Fetch new insights from API
-      setInsightsLoading(true);
-      const data = await apiRequest<{ insights: string[] }>('/analytics/ai');
-      if (data.insights && Array.isArray(data.insights) && data.insights.length > 0) {
-        setAiInsights(data.insights);
-        // Cache the insights with current timestamp
-        localStorage.setItem(CACHE_KEY, JSON.stringify({
-          insights: data.insights,
-          timestamp: Date.now()
-        }));
-      } else {
-        // Fallback insights
-        const fallbackInsights = [
-          "Keep tracking your habits to see patterns over time!",
-          "Regular exercise and good sleep can improve your mood and productivity.",
-          "Consistency is key - small daily actions lead to big results."
-        ];
-        setAiInsights(fallbackInsights);
-        // Cache fallback insights too
-        localStorage.setItem(CACHE_KEY, JSON.stringify({
-          insights: fallbackInsights,
-          timestamp: Date.now()
-        }));
-      }
-    } catch (error) {
-      console.error('Error loading AI insights:', error);
-      // Try to use cached insights even if API fails
-      const CACHE_KEY = 'momentum_ai_insights_cache';
-      const cached = localStorage.getItem(CACHE_KEY);
-      if (cached) {
-        try {
-          const { insights } = JSON.parse(cached);
-          if (insights && Array.isArray(insights) && insights.length > 0) {
-            setAiInsights(insights);
-            return;
-          }
-        } catch (e) {
-          // Ignore cache parse errors
-        }
-      }
-      // Fallback insights on error
-      setAiInsights([
-        "Keep tracking your habits to see patterns over time!",
-        "Regular exercise and good sleep can improve your mood and productivity.",
-        "Consistency is key - small daily actions lead to big results."
-      ]);
-    } finally {
-      setInsightsLoading(false);
-    }
-  };
-
-  // Use fallback insights if AI insights are empty
-  const displayInsights = aiInsights.length > 0 ? aiInsights : [
-    "👋 Welcome! Start adding tasks, courses, and expenses to get personalized insights.",
-    "💡 Tip: Consistency is more important than intensity. Small daily actions lead to big results."
-  ];
-
-  // Old hardcoded insights code removed - now using AI-generated insights from API
-  if (false) {
-    aiInsights.push("🎉 Excellent work! You're crushing your tasks this week.");
-  } else if (taskCompletionRate < 50 && totalTasks > 0) {
-    aiInsights.push("💡 Try breaking down large tasks into smaller, manageable steps.");
-  }
-
-  if (monthlySummary.totalExpenses > totalMonthlyBudget * 0.8 && totalMonthlyBudget > 0) {
-    aiInsights.push("⚠️ You've used 80% of your monthly budget. Consider reviewing your expenses.");
-  }
-
-  if (avgCourseProgress > 80 && activeCourses.length > 0) {
-    aiInsights.push(`� Your average academic progress is ${avgCourseProgress}%. Keep up the excellent work!`);
-  }
-
-  if (skills.length > 3) {
-    aiInsights.push(`🎯 You're tracking ${skills.length} skills. Great commitment to personal growth!`);
-  }
-
-  if (monthlySummary.netSavings > 0) {
-    aiInsights.push(`� You've saved ${monthlySummary.netSavings.toFixed(0)} BDT this month. Excellent financial discipline!`);
-  }
-
-  // If no insights, add default ones
-  if (aiInsights.length === 0) {
-    aiInsights.push("👋 Welcome! Start adding tasks, courses, and expenses to get personalized insights.");
-    aiInsights.push("💡 Tip: Consistency is more important than intensity. Small daily actions lead to big results.");
-  }
 
   if (loading) {
     return (
@@ -460,32 +342,8 @@ export function Dashboard({ onNavigate }: DashboardProps = {}) {
         ))}
       </div>
 
-      {/* AI Insights & Quick Actions */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-2">
-        {/* AI Insights */}
-        <Card className="lg:col-span-2 p-3 border-border bg-card">
-          <div className="flex items-center gap-2 mb-2">
-            <div className="w-6 h-6 rounded-lg bg-primary flex items-center justify-center">
-              <Sparkles className="w-3.5 h-3.5 text-primary-foreground" />
-            </div>
-            <h2 className="text-foreground text-lg">AI Insights & Suggestions</h2>
-          </div>
-          <div className="space-y-1.5">
-            {insightsLoading ? (
-              <div className="text-xs text-muted-foreground">Loading insights...</div>
-            ) : (
-              displayInsights.map((insight, index) => (
-                <div key={index} className="flex items-start gap-2 p-2 bg-accent rounded-lg">
-                  <div className="w-1.5 h-1.5 rounded-full bg-primary mt-1.5"></div>
-                  <p className="text-foreground text-xs flex-1">{insight}</p>
-                </div>
-              ))
-            )}
-          </div>
-        </Card>
-
-        {/* Quick Actions */}
-        <Card className="p-3 border-border bg-card">
+      {/* Quick Actions */}
+      <Card className="p-3 border-border bg-card">
           <h2 className="text-foreground mb-2 text-lg">Quick Actions</h2>
           <div className="space-y-2">
             <Button 
@@ -522,7 +380,6 @@ export function Dashboard({ onNavigate }: DashboardProps = {}) {
             </Button>
           </div>
         </Card>
-      </div>
 
       {/* Upcoming Tasks & Academic Progress */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-2">
@@ -552,7 +409,7 @@ export function Dashboard({ onNavigate }: DashboardProps = {}) {
                       {task.description && ` • ${task.description.substring(0, 25)}...`}
                     </p>
                   </div>
-                  <Badge className={getPriorityColor(task.priority || 'medium')} variant="secondary" className="text-xs">
+                  <Badge className={`${getPriorityColor(task.priority || 'medium')} text-xs`} variant="secondary">
                     {task.priority || 'medium'}
                   </Badge>
                 </div>

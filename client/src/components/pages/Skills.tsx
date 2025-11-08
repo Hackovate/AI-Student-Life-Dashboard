@@ -49,6 +49,7 @@ export function Skills() {
   const [loadingSuggestions, setLoadingSuggestions] = useState(false);
   const [loadingRoadmap, setLoadingRoadmap] = useState(false);
   const [editingRoadmap, setEditingRoadmap] = useState(false);
+  const [roadmapCurrentTab, setRoadmapCurrentTab] = useState<'basic' | 'milestones' | 'resources'>('basic');
 
   useEffect(() => {
     loadData();
@@ -558,9 +559,15 @@ export function Skills() {
       </Dialog>
 
       {/* Roadmap Preview Dialog */}
-      <Dialog open={roadmapPreviewOpen} onOpenChange={setRoadmapPreviewOpen}>
-        <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
-          <DialogHeader>
+      <Dialog open={roadmapPreviewOpen} onOpenChange={(open) => {
+        setRoadmapPreviewOpen(open);
+        if (!open) {
+          setRoadmapCurrentTab('basic');
+          setEditingRoadmap(false);
+        }
+      }}>
+        <DialogContent className="max-w-4xl max-h-[90vh] flex flex-col p-0">
+          <DialogHeader className="px-6 pt-6 pb-4 border-b">
             <DialogTitle className="flex items-center gap-2">
               <Target className="w-5 h-5 text-violet-500" />
               {editingRoadmap ? 'Edit' : 'Preview'} Generated Skill Roadmap
@@ -569,6 +576,42 @@ export function Skills() {
               Review the AI-generated roadmap. You can edit any details before saving.
             </DialogDescription>
           </DialogHeader>
+
+          {/* Tabs */}
+          <div className="border-b">
+            <div className="flex px-6">
+              <button
+                onClick={() => setRoadmapCurrentTab('basic')}
+                className={`px-4 py-3 text-sm font-medium border-b-2 transition-colors ${
+                  roadmapCurrentTab === 'basic'
+                    ? 'border-primary text-primary'
+                    : 'border-transparent text-muted-foreground hover:text-foreground'
+                }`}
+              >
+                Basic Information
+              </button>
+              <button
+                onClick={() => setRoadmapCurrentTab('milestones')}
+                className={`px-4 py-3 text-sm font-medium border-b-2 transition-colors ${
+                  roadmapCurrentTab === 'milestones'
+                    ? 'border-primary text-primary'
+                    : 'border-transparent text-muted-foreground hover:text-foreground'
+                }`}
+              >
+                Milestones
+              </button>
+              <button
+                onClick={() => setRoadmapCurrentTab('resources')}
+                className={`px-4 py-3 text-sm font-medium border-b-2 transition-colors ${
+                  roadmapCurrentTab === 'resources'
+                    ? 'border-primary text-primary'
+                    : 'border-transparent text-muted-foreground hover:text-foreground'
+                }`}
+              >
+                Resources
+              </button>
+            </div>
+          </div>
           
           {loadingRoadmap ? (
             <div className="flex items-center justify-center py-12">
@@ -576,207 +619,212 @@ export function Skills() {
               <span className="ml-2 text-muted-foreground">Generating roadmap...</span>
             </div>
           ) : generatedRoadmap ? (
-            <div className="space-y-4">
-              {/* Basic Info */}
-              <div className="space-y-3">
-                <h3 className="font-semibold text-foreground">Basic Information</h3>
-                <div className="grid grid-cols-2 gap-3">
-                  <div>
-                    <Label>Skill Name</Label>
-                    {editingRoadmap ? (
-                      <Input
-                        value={generatedRoadmap.name}
-                        onChange={(e) => handleUpdateRoadmapField('name', e.target.value)}
-                      />
-                    ) : (
-                      <p className="text-sm text-foreground mt-1">{generatedRoadmap.name}</p>
-                    )}
-                  </div>
-                  <div>
-                    <Label>Category</Label>
-                    {editingRoadmap ? (
-                      <Select
-                        value={generatedRoadmap.category}
-                        onValueChange={(value) => handleUpdateRoadmapField('category', value)}
-                      >
-                        <SelectTrigger>
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="Technical">Technical</SelectItem>
-                          <SelectItem value="Creative">Creative</SelectItem>
-                          <SelectItem value="Soft Skills">Soft Skills</SelectItem>
-                          <SelectItem value="Business">Business</SelectItem>
-                          <SelectItem value="Language">Language</SelectItem>
-                          <SelectItem value="Other">Other</SelectItem>
-                        </SelectContent>
-                      </Select>
-                    ) : (
-                      <p className="text-sm text-foreground mt-1">{generatedRoadmap.category}</p>
-                    )}
-                  </div>
-                  <div>
-                    <Label>Level</Label>
-                    {editingRoadmap ? (
-                      <Select
-                        value={generatedRoadmap.level}
-                        onValueChange={(value) => handleUpdateRoadmapField('level', value)}
-                      >
-                        <SelectTrigger>
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="beginner">Beginner</SelectItem>
-                          <SelectItem value="intermediate">Intermediate</SelectItem>
-                          <SelectItem value="advanced">Advanced</SelectItem>
-                          <SelectItem value="expert">Expert</SelectItem>
-                        </SelectContent>
-                      </Select>
-                    ) : (
-                      <p className="text-sm text-foreground mt-1 capitalize">{generatedRoadmap.level}</p>
-                    )}
-                  </div>
-                  <div>
-                    <Label>Duration</Label>
-                    {editingRoadmap ? (
-                      <Input
-                        type="number"
-                        value={generatedRoadmap.durationMonths}
-                        onChange={(e) => handleUpdateRoadmapField('durationMonths', parseInt(e.target.value))}
-                      />
-                    ) : (
-                      <p className="text-sm text-foreground mt-1">{generatedRoadmap.durationMonths} months</p>
-                    )}
-                  </div>
-                </div>
-                <div>
-                  <Label>Description</Label>
-                  {editingRoadmap ? (
-                    <Textarea
-                      value={generatedRoadmap.description}
-                      onChange={(e) => handleUpdateRoadmapField('description', e.target.value)}
-                      rows={3}
-                    />
-                  ) : (
-                    <p className="text-sm text-foreground mt-1">{generatedRoadmap.description}</p>
-                  )}
-                </div>
-                <div>
-                  <Label>Goal Statement</Label>
-                  {editingRoadmap ? (
-                    <Textarea
-                      value={generatedRoadmap.goalStatement}
-                      onChange={(e) => handleUpdateRoadmapField('goalStatement', e.target.value)}
-                      rows={2}
-                    />
-                  ) : (
-                    <p className="text-sm text-foreground mt-1">{generatedRoadmap.goalStatement}</p>
-                  )}
-                </div>
-                <div className="grid grid-cols-2 gap-3">
-                  <div>
-                    <Label>Estimated Hours</Label>
-                    {editingRoadmap ? (
-                      <Input
-                        type="number"
-                        value={generatedRoadmap.estimatedHours}
-                        onChange={(e) => handleUpdateRoadmapField('estimatedHours', parseFloat(e.target.value))}
-                      />
-                    ) : (
-                      <p className="text-sm text-foreground mt-1">{generatedRoadmap.estimatedHours} hours</p>
-                    )}
-                  </div>
-                  <div>
-                    <Label>Timeline</Label>
-                    <p className="text-sm text-foreground mt-1">
-                      {new Date(generatedRoadmap.startDate).toLocaleDateString()} - {new Date(generatedRoadmap.endDate).toLocaleDateString()}
-                    </p>
-                  </div>
-                </div>
-              </div>
-
-              {/* Milestones */}
-              <div className="space-y-2">
-                <div className="flex items-center justify-between">
-                  <h3 className="font-semibold text-foreground">Milestones</h3>
-                  {!editingRoadmap && (
-                    <Button variant="ghost" size="sm" onClick={handleEditRoadmap}>
-                      <Pencil className="w-4 h-4 mr-1" />
-                      Edit
-                    </Button>
-                  )}
-                </div>
-                <div className="space-y-2">
-                  {generatedRoadmap.milestones?.map((milestone: any, index: number) => (
-                    <Card key={index} className="p-2 border-border">
+            <div className="flex-1 overflow-y-auto px-6 py-4">
+              {/* Basic Info Tab */}
+              {roadmapCurrentTab === 'basic' && (
+                <div className="space-y-4">
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <Label>Skill Name</Label>
                       {editingRoadmap ? (
                         <Input
-                          value={milestone.name}
-                          onChange={(e) => handleUpdateMilestone(index, 'name', e.target.value)}
+                          value={generatedRoadmap.name}
+                          onChange={(e) => handleUpdateRoadmapField('name', e.target.value)}
                         />
                       ) : (
-                        <div className="flex items-center gap-2">
-                          <Badge variant="outline" className="text-xs">Step {milestone.order + 1}</Badge>
-                          <span className="text-sm text-foreground">{milestone.name}</span>
-                        </div>
+                        <p className="text-sm text-foreground mt-1">{generatedRoadmap.name}</p>
                       )}
-                    </Card>
-                  ))}
-                </div>
-              </div>
-
-              {/* Resources */}
-              <div className="space-y-2">
-                <div className="flex items-center justify-between">
-                  <h3 className="font-semibold text-foreground">Learning Resources</h3>
-                </div>
-                <div className="space-y-2">
-                  {generatedRoadmap.resources?.map((resource: any, index: number) => (
-                    <Card key={index} className="p-2 border-border">
+                    </div>
+                    <div>
+                      <Label>Category</Label>
                       {editingRoadmap ? (
-                        <div className="space-y-2">
-                          <Input
-                            placeholder="Resource title"
-                            value={resource.title}
-                            onChange={(e) => handleUpdateResource(index, 'title', e.target.value)}
-                          />
-                          <Input
-                            placeholder="URL (optional)"
-                            value={resource.url || ''}
-                            onChange={(e) => handleUpdateResource(index, 'url', e.target.value)}
-                          />
-                          <Textarea
-                            placeholder="Description"
-                            value={resource.description || ''}
-                            onChange={(e) => handleUpdateResource(index, 'description', e.target.value)}
-                            rows={2}
-                          />
-                        </div>
+                        <Select
+                          value={generatedRoadmap.category}
+                          onValueChange={(value) => handleUpdateRoadmapField('category', value)}
+                        >
+                          <SelectTrigger>
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="Technical">Technical</SelectItem>
+                            <SelectItem value="Creative">Creative</SelectItem>
+                            <SelectItem value="Soft Skills">Soft Skills</SelectItem>
+                            <SelectItem value="Business">Business</SelectItem>
+                            <SelectItem value="Language">Language</SelectItem>
+                            <SelectItem value="Other">Other</SelectItem>
+                          </SelectContent>
+                        </Select>
                       ) : (
-                        <div>
-                          <div className="flex items-center gap-2 mb-1">
-                            <span className="font-medium text-sm text-foreground">{resource.title}</span>
-                            <Badge variant="secondary" className="text-xs">{resource.type}</Badge>
-                          </div>
-                          {resource.url && (
-                            <a 
-                              href={resource.url} 
-                              target="_blank" 
-                              rel="noopener noreferrer"
-                              className="text-xs text-violet-600 dark:text-violet-400 hover:underline"
-                            >
-                              {resource.url}
-                            </a>
-                          )}
-                          {resource.description && (
-                            <p className="text-xs text-muted-foreground mt-1">{resource.description}</p>
-                          )}
-                        </div>
+                        <p className="text-sm text-foreground mt-1">{generatedRoadmap.category}</p>
                       )}
-                    </Card>
-                  ))}
+                    </div>
+                    <div>
+                      <Label>Level</Label>
+                      {editingRoadmap ? (
+                        <Select
+                          value={generatedRoadmap.level}
+                          onValueChange={(value) => handleUpdateRoadmapField('level', value)}
+                        >
+                          <SelectTrigger>
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="beginner">Beginner</SelectItem>
+                            <SelectItem value="intermediate">Intermediate</SelectItem>
+                            <SelectItem value="advanced">Advanced</SelectItem>
+                            <SelectItem value="expert">Expert</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      ) : (
+                        <p className="text-sm text-foreground mt-1 capitalize">{generatedRoadmap.level}</p>
+                      )}
+                    </div>
+                    <div>
+                      <Label>Duration</Label>
+                      {editingRoadmap ? (
+                        <Input
+                          type="number"
+                          value={generatedRoadmap.durationMonths}
+                          onChange={(e) => handleUpdateRoadmapField('durationMonths', parseInt(e.target.value))}
+                        />
+                      ) : (
+                        <p className="text-sm text-foreground mt-1">{generatedRoadmap.durationMonths} months</p>
+                      )}
+                    </div>
+                  </div>
+                  <div>
+                    <Label>Description</Label>
+                    {editingRoadmap ? (
+                      <Textarea
+                        value={generatedRoadmap.description}
+                        onChange={(e) => handleUpdateRoadmapField('description', e.target.value)}
+                        rows={3}
+                      />
+                    ) : (
+                      <p className="text-sm text-foreground mt-1">{generatedRoadmap.description}</p>
+                    )}
+                  </div>
+                  <div>
+                    <Label>Goal Statement</Label>
+                    {editingRoadmap ? (
+                      <Textarea
+                        value={generatedRoadmap.goalStatement}
+                        onChange={(e) => handleUpdateRoadmapField('goalStatement', e.target.value)}
+                        rows={2}
+                      />
+                    ) : (
+                      <p className="text-sm text-foreground mt-1">{generatedRoadmap.goalStatement}</p>
+                    )}
+                  </div>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <Label>Estimated Hours</Label>
+                      {editingRoadmap ? (
+                        <Input
+                          type="number"
+                          value={generatedRoadmap.estimatedHours}
+                          onChange={(e) => handleUpdateRoadmapField('estimatedHours', parseFloat(e.target.value))}
+                        />
+                      ) : (
+                        <p className="text-sm text-foreground mt-1">{generatedRoadmap.estimatedHours} hours</p>
+                      )}
+                    </div>
+                    <div>
+                      <Label>Timeline</Label>
+                      <p className="text-sm text-foreground mt-1">
+                        {new Date(generatedRoadmap.startDate).toLocaleDateString()} - {new Date(generatedRoadmap.endDate).toLocaleDateString()}
+                      </p>
+                    </div>
+                  </div>
                 </div>
-              </div>
+              )}
+
+              {/* Milestones Tab */}
+              {roadmapCurrentTab === 'milestones' && (
+                <div className="space-y-4">
+                  <div className="flex items-center justify-between">
+                    <h3 className="font-semibold text-foreground">Milestones</h3>
+                    {!editingRoadmap && (
+                      <Button variant="ghost" size="sm" onClick={handleEditRoadmap}>
+                        <Pencil className="w-4 h-4 mr-1" />
+                        Edit
+                      </Button>
+                    )}
+                  </div>
+                  <div className="space-y-2">
+                    {generatedRoadmap.milestones?.map((milestone: any, index: number) => (
+                      <Card key={index} className="p-2 border-border">
+                        {editingRoadmap ? (
+                          <Input
+                            value={milestone.name}
+                            onChange={(e) => handleUpdateMilestone(index, 'name', e.target.value)}
+                          />
+                        ) : (
+                          <div className="flex items-center gap-2">
+                            <Badge variant="outline" className="text-xs">Step {milestone.order + 1}</Badge>
+                            <span className="text-sm text-foreground">{milestone.name}</span>
+                          </div>
+                        )}
+                      </Card>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Resources Tab */}
+              {roadmapCurrentTab === 'resources' && (
+                <div className="space-y-4">
+                  <div className="flex items-center justify-between">
+                    <h3 className="font-semibold text-foreground">Learning Resources</h3>
+                  </div>
+                  <div className="space-y-2">
+                    {generatedRoadmap.resources?.map((resource: any, index: number) => (
+                      <Card key={index} className="p-2 border-border">
+                        {editingRoadmap ? (
+                          <div className="space-y-2">
+                            <Input
+                              placeholder="Resource title"
+                              value={resource.title}
+                              onChange={(e) => handleUpdateResource(index, 'title', e.target.value)}
+                            />
+                            <Input
+                              placeholder="URL (optional)"
+                              value={resource.url || ''}
+                              onChange={(e) => handleUpdateResource(index, 'url', e.target.value)}
+                            />
+                            <Textarea
+                              placeholder="Description"
+                              value={resource.description || ''}
+                              onChange={(e) => handleUpdateResource(index, 'description', e.target.value)}
+                              rows={2}
+                            />
+                          </div>
+                        ) : (
+                          <div>
+                            <div className="flex items-center gap-2 mb-1">
+                              <span className="font-medium text-sm text-foreground">{resource.title}</span>
+                              <Badge variant="secondary" className="text-xs">{resource.type}</Badge>
+                            </div>
+                            {resource.url && (
+                              <a 
+                                href={resource.url} 
+                                target="_blank" 
+                                rel="noopener noreferrer"
+                                className="text-xs text-violet-600 dark:text-violet-400 hover:underline"
+                              >
+                                {resource.url}
+                              </a>
+                            )}
+                            {resource.description && (
+                              <p className="text-xs text-muted-foreground mt-1">{resource.description}</p>
+                            )}
+                          </div>
+                        )}
+                      </Card>
+                    ))}
+                  </div>
+                </div>
+              )}
             </div>
           ) : null}
           

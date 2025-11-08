@@ -1,7 +1,6 @@
 import { Router } from 'express';
 import { PrismaClient } from '@prisma/client';
 import { authenticate, AuthRequest } from '../middleware/auth.middleware';
-import { getAIInsights } from '../services/ai.service';
 
 const router = Router();
 const prisma = new PrismaClient();
@@ -182,17 +181,22 @@ router.get('/', async (req: AuthRequest, res) => {
     }
 
     // Get daily task completion for calendar
-    const dailyTaskCompletion: { [key: string]: { completed: number; total: number } } = {};
+    const dailyTaskCompletion: { [key: string]: { completed: number; total: number; tasks: Array<{ title: string; status: string }> } } = {};
     
     tasks.forEach(task => {
       const dateKey = new Date(task.createdAt).toISOString().split('T')[0];
       if (!dailyTaskCompletion[dateKey]) {
-        dailyTaskCompletion[dateKey] = { completed: 0, total: 0 };
+        dailyTaskCompletion[dateKey] = { completed: 0, total: 0, tasks: [] };
       }
       dailyTaskCompletion[dateKey].total++;
       if (task.status === 'completed') {
         dailyTaskCompletion[dateKey].completed++;
       }
+      // Add task details
+      dailyTaskCompletion[dateKey].tasks.push({
+        title: task.title || 'Untitled Task',
+        status: task.status || 'pending'
+      });
     });
 
     // Calculate time balance from actual user data
@@ -343,74 +347,6 @@ router.get('/', async (req: AuthRequest, res) => {
   }
 });
 
-// Get AI-generated insights for dashboard
-router.get('/ai', async (req: AuthRequest, res) => {
-  try {
-    const userId = req.userId!;
-    const thirtyDaysAgo = new Date();
-    thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
-
-    // Fetch habits with completion history
-    const habits = await prisma.habit.findMany({
-      where: { userId },
-      select: {
-        id: true,
-        name: true,
-        target: true,
-        streak: true,
-        completed: true,
-        completionHistory: true
-      }
-    });
-
-    // Fetch lifestyle data (last 30 days)
-    const lifestyleData = await prisma.lifestyle.findMany({
-      where: {
-        userId,
-        date: { gte: thirtyDaysAgo }
-      },
-      select: {
-        date: true,
-        sleepHours: true,
-        exerciseMinutes: true,
-        waterIntake: true,
-        mealQuality: true,
-        stressLevel: true,
-        notes: true
-      },
-      orderBy: { date: 'desc' }
-    });
-
-    // Fetch journal entries (last 30 days) with mood
-    const journalEntries = await prisma.journal.findMany({
-      where: {
-        userId,
-        date: { gte: thirtyDaysAgo }
-      },
-      select: {
-        date: true,
-        mood: true,
-        title: true,
-        content: true,
-        tags: true
-      },
-      orderBy: { date: 'desc' }
-    });
-
-    // Call AI service for insights
-    const insights = await getAIInsights({
-      user_id: userId,
-      habits,
-      lifestyle_data: lifestyleData,
-      journal_entries: journalEntries
-    });
-
-    res.json({ insights });
-  } catch (error) {
-    console.error('Error fetching AI insights:', error);
-    res.status(500).json({ error: 'Error fetching AI insights' });
-  }
-});
 
 export default router;
 

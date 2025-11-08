@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { TrendingUp, TrendingDown, Calendar, Sparkles } from 'lucide-react';
+import { TrendingUp, TrendingDown, Calendar, Sparkles, ChevronLeft, ChevronRight } from 'lucide-react';
 import { Card } from '../ui/card';
 import { Button } from '../ui/button';
 import { Badge } from '../ui/badge';
@@ -9,6 +9,8 @@ export function Analytics() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [analyticsData, setAnalyticsData] = useState<any>(null);
+  const [selectedMonth, setSelectedMonth] = useState(new Date().getMonth());
+  const [selectedYear, setSelectedYear] = useState(new Date().getFullYear());
 
   useEffect(() => {
     const fetchAnalytics = async () => {
@@ -51,10 +53,34 @@ export function Analytics() {
   const currentMonth = new Date().getMonth();
   const currentYear = new Date().getFullYear();
 
-  // Generate calendar data for the current month
+  // Month navigation handlers
+  const handlePreviousMonth = () => {
+    if (selectedMonth === 0) {
+      setSelectedMonth(11);
+      setSelectedYear(selectedYear - 1);
+    } else {
+      setSelectedMonth(selectedMonth - 1);
+    }
+  };
+
+  const handleNextMonth = () => {
+    if (selectedMonth === 11) {
+      setSelectedMonth(0);
+      setSelectedYear(selectedYear + 1);
+    } else {
+      setSelectedMonth(selectedMonth + 1);
+    }
+  };
+
+  const handleToday = () => {
+    setSelectedMonth(currentMonth);
+    setSelectedYear(currentYear);
+  };
+
+  // Generate calendar data for the selected month
   const generateCalendarData = () => {
-    const year = currentYear;
-    const month = currentMonth;
+    const year = selectedYear;
+    const month = selectedMonth;
     const firstDay = new Date(year, month, 1);
     const lastDay = new Date(year, month + 1, 0);
     const daysInMonth = lastDay.getDate();
@@ -72,8 +98,13 @@ export function Analytics() {
       const date = new Date(year, month, day);
       const dateString = date.toISOString().split('T')[0];
       
-      const dayData = dailyTaskCompletion[dateString] || { completed: 0, total: 0 };
+      const dayData = dailyTaskCompletion[dateString] || { completed: 0, total: 0, tasks: [] };
       const completionRate = dayData.total > 0 ? (dayData.completed / dayData.total) * 100 : -1;
+
+      const today = new Date();
+      const isToday = dateString === today.toISOString().split('T')[0] && 
+                      month === today.getMonth() && 
+                      year === today.getFullYear();
 
       calendarDays.push({
         day,
@@ -81,7 +112,8 @@ export function Analytics() {
         completionRate,
         tasksCompleted: dayData.completed,
         tasksTotal: dayData.total,
-        isToday: dateString === new Date().toISOString().split('T')[0]
+        tasks: dayData.tasks || [],
+        isToday
       });
     }
 
@@ -163,56 +195,186 @@ export function Analytics() {
 
       {/* Charts Row 1 */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-2">
-        {/* Monthly Calendar */}
-        <Card className="p-3 border-border bg-card">
-          <div className="flex items-center justify-between mb-1.5">
-            <h2 className="text-foreground text-lg">Task Completion Calendar</h2>
-            <Badge variant="secondary" className="text-xs">{monthNames[currentMonth]} {currentYear}</Badge>
+        {/* Monthly Calendar - Redesigned */}
+        <Card className="p-4 border-border bg-card">
+          {/* Header with Navigation */}
+          <div className="flex items-center justify-between mb-4">
+            <div>
+              <h2 className="text-foreground text-xl font-semibold mb-0.5">Task Completion Calendar</h2>
+              <p className="text-muted-foreground text-xs">Track your daily productivity</p>
+            </div>
+            <div className="flex items-center gap-2">
+              <Button
+                variant="outline"
+                size="icon"
+                className="h-7 w-7"
+                onClick={handlePreviousMonth}
+              >
+                <ChevronLeft className="h-4 w-4" />
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                className="h-7 px-3 text-xs font-medium"
+                onClick={handleToday}
+              >
+                Today
+              </Button>
+              <Button
+                variant="outline"
+                size="icon"
+                className="h-7 w-7"
+                onClick={handleNextMonth}
+              >
+                <ChevronRight className="h-4 w-4" />
+              </Button>
+            </div>
           </div>
-          <div className="grid grid-cols-7 gap-1 text-center mb-1.5">
+
+          {/* Month/Year Display */}
+          <div className="flex items-center justify-center mb-4">
+            <Badge variant="secondary" className="text-sm font-semibold px-4 py-1.5">
+              {monthNames[selectedMonth]} {selectedYear}
+            </Badge>
+          </div>
+
+          {/* Day Headers */}
+          <div className="grid grid-cols-7 gap-1.5 mb-2">
             {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map((day) => (
-              <div key={day} className="text-xs text-muted-foreground font-medium py-0.5">
+              <div key={day} className="text-xs text-muted-foreground font-semibold text-center py-1.5">
                 {day}
               </div>
             ))}
           </div>
-          <div className="grid grid-cols-7 gap-1">
+
+          {/* Calendar Grid */}
+          <div className="grid grid-cols-7 gap-1.5">
             {calendarDays.map((dayData, index) => {
               if (!dayData) {
-                return <div key={`empty-${index}`} className="aspect-square" />;
+                return <div key={`empty-${index}`} className="h-12" />;
               }
 
-              const getDotColor = (rate: number) => {
-                if (rate === -1) return 'bg-gray-200 dark:bg-gray-700'; // No tasks
-                if (rate === 0) return 'bg-gray-400 dark:bg-gray-600'; // 0% completion
-                if (rate < 25) return 'bg-red-400'; // < 25%
-                if (rate < 50) return 'bg-orange-400'; // < 50%
-                if (rate < 75) return 'bg-yellow-400'; // < 75%
-                if (rate < 100) return 'bg-blue-400'; // < 100%
-                return 'bg-green-500'; // 100%
+              const getCompletionColor = (rate: number) => {
+                if (rate === -1) return 'bg-gray-100 dark:bg-gray-800/50 border-gray-200 dark:border-gray-700';
+                if (rate === 0) return 'bg-red-50 dark:bg-red-950/30 border-red-200 dark:border-red-900';
+                if (rate < 25) return 'bg-red-100 dark:bg-red-950/50 border-red-300 dark:border-red-800';
+                if (rate < 50) return 'bg-orange-100 dark:bg-orange-950/50 border-orange-300 dark:border-orange-800';
+                if (rate < 75) return 'bg-yellow-100 dark:bg-yellow-950/50 border-yellow-300 dark:border-yellow-800';
+                if (rate < 100) return 'bg-blue-100 dark:bg-blue-950/50 border-blue-300 dark:border-blue-800';
+                return 'bg-green-100 dark:bg-green-950/50 border-green-300 dark:border-green-800';
               };
+
+              const getProgressGradient = (rate: number) => {
+                if (rate === -1) return '';
+                if (rate === 0) return 'bg-gradient-to-br from-red-400 to-red-500';
+                if (rate < 25) return 'bg-gradient-to-br from-red-400 to-red-500';
+                if (rate < 50) return 'bg-gradient-to-br from-orange-400 to-orange-500';
+                if (rate < 75) return 'bg-gradient-to-br from-yellow-400 to-yellow-500';
+                if (rate < 100) return 'bg-gradient-to-br from-blue-400 to-blue-500';
+                return 'bg-gradient-to-br from-green-400 to-green-500';
+              };
+
+              const completedTasks = dayData.tasks?.filter((t: any) => t.status === 'completed') || [];
+              const incompleteTasks = dayData.tasks?.filter((t: any) => t.status !== 'completed') || [];
+              const hasTasks = dayData.completionRate >= 0;
 
               return (
                 <div
                   key={dayData.date}
-                  className={`aspect-square flex flex-col items-center justify-center rounded-lg border transition-all cursor-pointer group relative ${
+                  className={`h-12 flex flex-col items-center justify-center rounded-lg border-2 transition-all cursor-pointer group relative overflow-hidden ${
                     dayData.isToday
-                      ? 'border-primary bg-primary/10 ring-2 ring-primary'
-                      : 'border-border hover:border-primary/50'
-                  }`}
+                      ? 'border-primary bg-primary/5 ring-2 ring-primary ring-offset-1 dark:ring-offset-background shadow-md scale-105 z-10'
+                      : getCompletionColor(dayData.completionRate)
+                  } hover:scale-105 hover:shadow-md hover:z-10`}
                 >
-                  <span className={`text-xs ${dayData.isToday ? 'text-primary font-bold' : 'text-foreground'}`}>
+                  {/* Progress Background */}
+                  {hasTasks && (
+                    <div 
+                      className={`absolute inset-0 ${getProgressGradient(dayData.completionRate)} opacity-20`}
+                      style={{ height: `${dayData.completionRate}%` }}
+                    />
+                  )}
+
+                  {/* Date Number */}
+                  <span className={`text-xs font-semibold relative z-10 leading-none ${
+                    dayData.isToday 
+                      ? 'text-primary' 
+                      : hasTasks 
+                        ? 'text-foreground' 
+                        : 'text-muted-foreground'
+                  }`}>
                     {dayData.day}
                   </span>
-                  {dayData.completionRate >= 0 && (
-                    <div className={`w-1.5 h-1.5 rounded-full mt-0.5 ${getDotColor(dayData.completionRate)}`} />
+
+                  {/* Completion Indicator */}
+                  {hasTasks && (
+                    <div className="relative z-10 mt-0.5">
+                      <div className={`w-1 h-1 rounded-full ${getProgressGradient(dayData.completionRate)} shadow-sm`} />
+                    </div>
                   )}
-                  
-                  {/* Tooltip */}
+
+                  {/* Completion Percentage Badge */}
+                  {hasTasks && dayData.completionRate > 0 && (
+                    <div className="absolute top-0.5 right-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
+                      <div className="bg-background/90 backdrop-blur-sm text-[8px] font-bold px-1 py-0.5 rounded border border-border">
+                        {Math.round(dayData.completionRate)}%
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Enhanced Tooltip with Task Details */}
                   {dayData.tasksTotal > 0 && (
-                    <div className="absolute bottom-full mb-2 hidden group-hover:block z-10 pointer-events-none">
-                      <div className="bg-popover text-popover-foreground text-xs rounded-lg px-2 py-1 shadow-lg border border-border whitespace-nowrap">
-                        {dayData.tasksCompleted}/{dayData.tasksTotal} tasks ({Math.round(dayData.completionRate)}%)
+                    <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 hidden group-hover:block z-30 pointer-events-none min-w-[240px]">
+                      <div className="bg-popover text-popover-foreground text-xs rounded-lg px-3 py-2.5 shadow-xl border border-border backdrop-blur-sm">
+                        <div className="font-semibold mb-2 text-sm border-b border-border pb-1.5">
+                          {new Date(dayData.date).toLocaleDateString('en-US', { weekday: 'long', month: 'short', day: 'numeric' })}
+                        </div>
+                        <div className="mb-2">
+                          <div className="flex items-center justify-between mb-1.5">
+                            <span className="text-muted-foreground">Completion</span>
+                            <span className="font-bold text-foreground">
+                              {dayData.tasksCompleted}/{dayData.tasksTotal} ({Math.round(dayData.completionRate)}%)
+                            </span>
+                          </div>
+                          <div className="w-full bg-muted rounded-full h-1.5">
+                            <div 
+                              className={`h-1.5 rounded-full ${getProgressGradient(dayData.completionRate)}`}
+                              style={{ width: `${dayData.completionRate}%` }}
+                            />
+                          </div>
+                        </div>
+                        {completedTasks.length > 0 && (
+                          <div className="mb-2">
+                            <div className="text-[10px] font-semibold text-green-600 dark:text-green-400 mb-1 flex items-center gap-1">
+                              <div className="w-1.5 h-1.5 rounded-full bg-green-500" />
+                              Completed ({completedTasks.length})
+                            </div>
+                            <div className="text-[10px] text-green-700 dark:text-green-300 space-y-0.5 pl-3">
+                              {completedTasks.slice(0, 3).map((task: any, idx: number) => (
+                                <div key={idx} className="truncate">✓ {task.title}</div>
+                              ))}
+                              {completedTasks.length > 3 && (
+                                <div className="text-muted-foreground">+{completedTasks.length - 3} more</div>
+                              )}
+                            </div>
+                          </div>
+                        )}
+                        {incompleteTasks.length > 0 && (
+                          <div>
+                            <div className="text-[10px] font-semibold text-orange-600 dark:text-orange-400 mb-1 flex items-center gap-1">
+                              <div className="w-1.5 h-1.5 rounded-full bg-orange-500" />
+                              Pending ({incompleteTasks.length})
+                            </div>
+                            <div className="text-[10px] text-orange-700 dark:text-orange-300 space-y-0.5 pl-3">
+                              {incompleteTasks.slice(0, 3).map((task: any, idx: number) => (
+                                <div key={idx} className="truncate">○ {task.title}</div>
+                              ))}
+                              {incompleteTasks.length > 3 && (
+                                <div className="text-muted-foreground">+{incompleteTasks.length - 3} more</div>
+                              )}
+                            </div>
+                          </div>
+                        )}
                       </div>
                     </div>
                   )}
@@ -220,30 +382,34 @@ export function Analytics() {
               );
             })}
           </div>
-          <div className="mt-2 flex flex-wrap gap-1.5 text-xs">
-            <div className="flex items-center gap-1">
-              <div className="w-1.5 h-1.5 rounded-full bg-gray-200 dark:bg-gray-700" />
-              <span className="text-muted-foreground">No tasks</span>
-            </div>
-            <div className="flex items-center gap-1">
-              <div className="w-1.5 h-1.5 rounded-full bg-red-400" />
-              <span className="text-muted-foreground">&lt;25%</span>
-            </div>
-            <div className="flex items-center gap-1">
-              <div className="w-1.5 h-1.5 rounded-full bg-orange-400" />
-              <span className="text-muted-foreground">25-50%</span>
-            </div>
-            <div className="flex items-center gap-1">
-              <div className="w-1.5 h-1.5 rounded-full bg-yellow-400" />
-              <span className="text-muted-foreground">50-75%</span>
-            </div>
-            <div className="flex items-center gap-1">
-              <div className="w-1.5 h-1.5 rounded-full bg-blue-400" />
-              <span className="text-muted-foreground">75-99%</span>
-            </div>
-            <div className="flex items-center gap-1">
-              <div className="w-1.5 h-1.5 rounded-full bg-green-500" />
-              <span className="text-muted-foreground">100%</span>
+
+          {/* Enhanced Legend */}
+          <div className="mt-4 pt-3 border-t border-border">
+            <div className="flex flex-wrap items-center justify-center gap-3 text-xs">
+              <div className="flex items-center gap-1.5 px-2 py-1 rounded-md bg-muted/50">
+                <div className="w-2 h-2 rounded-full bg-gray-200 dark:bg-gray-700" />
+                <span className="text-muted-foreground font-medium">No tasks</span>
+              </div>
+              <div className="flex items-center gap-1.5 px-2 py-1 rounded-md bg-muted/50">
+                <div className="w-2 h-2 rounded-full bg-gradient-to-br from-red-400 to-red-500" />
+                <span className="text-muted-foreground font-medium">&lt;25%</span>
+              </div>
+              <div className="flex items-center gap-1.5 px-2 py-1 rounded-md bg-muted/50">
+                <div className="w-2 h-2 rounded-full bg-gradient-to-br from-orange-400 to-orange-500" />
+                <span className="text-muted-foreground font-medium">25-50%</span>
+              </div>
+              <div className="flex items-center gap-1.5 px-2 py-1 rounded-md bg-muted/50">
+                <div className="w-2 h-2 rounded-full bg-gradient-to-br from-yellow-400 to-yellow-500" />
+                <span className="text-muted-foreground font-medium">50-75%</span>
+              </div>
+              <div className="flex items-center gap-1.5 px-2 py-1 rounded-md bg-muted/50">
+                <div className="w-2 h-2 rounded-full bg-gradient-to-br from-blue-400 to-blue-500" />
+                <span className="text-muted-foreground font-medium">75-99%</span>
+              </div>
+              <div className="flex items-center gap-1.5 px-2 py-1 rounded-md bg-muted/50">
+                <div className="w-2 h-2 rounded-full bg-gradient-to-br from-green-400 to-green-500" />
+                <span className="text-muted-foreground font-medium">100%</span>
+              </div>
             </div>
           </div>
         </Card>

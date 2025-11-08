@@ -14,7 +14,21 @@ router.get('/', async (req: AuthRequest, res) => {
       where: { userId: req.userId },
       orderBy: { createdAt: 'desc' }
     });
-    res.json(habits);
+    
+    // Calculate completed field based on today's date in completionHistory
+    const today = new Date().toISOString().split('T')[0];
+    const habitsWithTodayStatus = habits.map(habit => {
+      const history = (habit.completionHistory as any) || [];
+      const todayEntry = history.find((entry: any) => entry.date === today);
+      const completedToday = todayEntry ? todayEntry.completed : false;
+      
+      return {
+        ...habit,
+        completed: completedToday
+      };
+    });
+    
+    res.json(habitsWithTodayStatus);
   } catch (error) {
     console.error('Error fetching habits:', error);
     res.status(500).json({ error: 'Error fetching habits' });
@@ -31,7 +45,17 @@ router.get('/:id', async (req: AuthRequest, res) => {
     if (!habit) {
       return res.status(404).json({ error: 'Habit not found' });
     }
-    res.json(habit);
+    
+    // Calculate completed field based on today's date in completionHistory
+    const today = new Date().toISOString().split('T')[0];
+    const history = (habit.completionHistory as any) || [];
+    const todayEntry = history.find((entry: any) => entry.date === today);
+    const completedToday = todayEntry ? todayEntry.completed : false;
+    
+    res.json({
+      ...habit,
+      completed: completedToday
+    });
   } catch (error) {
     console.error('Error fetching habit:', error);
     res.status(500).json({ error: 'Error fetching habit' });

@@ -3,13 +3,22 @@ import json
 import re
 import traceback
 import uuid
-from datetime import datetime
+from datetime import datetime, timedelta
 from fastapi import APIRouter, HTTPException
+import numpy as np
 from models import ChatRequest, ChatResponse, ChatAction
 from database import collection
 from ai_client import call_gemini_generate, gemini_embedding
-from utils import retrieve_user_context, determine_optimal_k, determine_context_types, summarize_long_context
+from utils import retrieve_user_context, determine_optimal_k, determine_context_types, summarize_long_context, filter_syllabus_by_chapters
 from langchain.text_splitter import RecursiveCharacterTextSplitter
+
+# Try to import dateutil, fallback to manual parsing
+try:
+    from dateutil import parser as date_parser
+    HAS_DATEUTIL = True
+except ImportError:
+    HAS_DATEUTIL = False
+    print("Warning: python-dateutil not installed. Date parsing may be limited.")
 
 # Text splitter for long conversations (smaller chunks for chat context)
 conversation_splitter = RecursiveCharacterTextSplitter(
@@ -55,6 +64,133 @@ async def chat(req: ChatRequest):
         # Documents are already sorted by combined_score (relevance + recency)
         context_text = "\n\n".join([d['text'] for d in context_docs]) if context_docs else ""
         
+        # Detect exam mentions and retrieve relevant syllabus
+        syllabus_context = ""
+        exam_info = None
+        
+        # Check if message mentions exam (midterm, final, quiz, exam)
+        exam_keywords = ['midterm', 'mid term', 'final', 'quiz', 'exam', 'test', 'assessment']
+        message_lower = req.message.lower()
+        has_exam_mention = any(keyword in message_lower for keyword in exam_keywords)
+        
+        if has_exam_mention:
+            # Extract exam date
+            exam_date = None
+            date_patterns = [
+                r'(?:on|for|by)\s+(\w+\s+\d{1,2}(?:st|nd|rd|th)?(?:\s+\d{4})?)',  # "on Nov 15" or "on November 15, 2025"
+                r'(\d{1,2}[/-]\d{1,2}(?:[/-]\d{2,4})?)',  # "11/15" or "11/15/2025"
+                r'(\w+\s+\d{1,2})',  # "Nov 15"
+            ]
+            
+            for pattern in date_patterns:
+                match = re.search(pattern, req.message, re.IGNORECASE)
+                if match:
+                    try:
+                        if HAS_DATEUTIL:
+                            exam_date = date_parser.parse(match.group(1), fuzzy=True)
+                        else:
+                            # Simple fallback parsing
+                            date_str = match.group(1)
+                            # Try common formats
+                            try:
+                                exam_date = datetime.strptime(date_str, "%m/%d/%Y")
+                            except:
+                                try:
+                                    exam_date = datetime.strptime(date_str, "%m/%d")
+                                    # Assume current year
+                                    exam_date = exam_date.replace(year=datetime.now().year)
+                                except:
+                                    pass
+                        if exam_date:
+                            break
+                    except:
+                        pass
+            
+            # Extract course name from message or structured context
+            course_name = None
+            course_id = None
+            if req.structured_context:
+                # Try to extract course from structured context
+                import json
+                try:
+                    # Look for course mentions in the message
+                    course_pattern = r'(?:for|in|of)\s+([A-Z][a-zA-Z\s]+?)(?:\s+covering|\s+chapters|\s+on|$)'
+                    course_match = re.search(course_pattern, req.message, re.IGNORECASE)
+                    if course_match:
+                        course_name = course_match.group(1).strip()
+                except:
+                    pass
+            
+            # Extract chapters from message
+            chapters = None
+            chapter_patterns = [
+                r'chapter[s]?\s*(\d+(?:\s*[-–]\s*\d+)?)',  # "chapters 1-5"
+                r'chapter[s]?\s*(\d+(?:\s*,\s*\d+)*)',  # "chapters 1, 2, 3"
+                r'ch\.?\s*(\d+)',  # "ch. 1"
+            ]
+            
+            for pattern in chapter_patterns:
+                matches = re.findall(pattern, message_lower)
+                if matches:
+                    chapters = []
+                    for match in matches:
+                        if '-' in match or '–' in match:
+                            range_parts = re.split(r'[-–]', match)
+                            if len(range_parts) == 2:
+                                try:
+                                    start = int(range_parts[0].strip())
+                                    end = int(range_parts[1].strip())
+                                    chapters.extend([str(i) for i in range(start, end + 1)])
+                                except:
+                                    pass
+                        elif ',' in match:
+                            chapters.extend([c.strip() for c in match.split(',')])
+                        else:
+                            chapters.append(match.strip())
+                    break
+            
+            # If we have course info, try to retrieve syllabus
+            if course_name or course_id:
+                # Try to find course_id from structured context
+                # For now, we'll retrieve syllabus for all courses and filter by course name
+                # This is a simplified approach - in production, you'd match course_id from context
+                try:
+                    # Get syllabus chunks filtered by chapters
+                    # Note: We need course_id, but we can try to find it from context
+                    # For now, retrieve syllabus with type filter and let semantic search find relevant ones
+                    syllabus_docs = retrieve_user_context(
+                        req.user_id,
+                        f"{req.message} {course_name or ''}",
+                        k=5,
+                        min_similarity=0.6,
+                        allowed_types=["syllabus"],
+                        deduplicate=True
+                    )
+                    
+                    if syllabus_docs:
+                        # Filter by chapters if specified
+                        if chapters:
+                            filtered_syllabus = []
+                            for doc in syllabus_docs:
+                                doc_lower = doc['text'].lower()
+                                if any(
+                                    f"chapter {ch}" in doc_lower or 
+                                    f"ch. {ch}" in doc_lower or
+                                    ch in doc_lower
+                                    for ch in chapters
+                                ):
+                                    filtered_syllabus.append(doc)
+                            syllabus_docs = filtered_syllabus if filtered_syllabus else syllabus_docs
+                        
+                        syllabus_context = "\n\n".join([d['text'] for d in syllabus_docs[:3]])  # Limit to top 3 chunks
+                        exam_info = {
+                            'date': exam_date,
+                            'course': course_name,
+                            'chapters': chapters
+                        }
+                except Exception as e:
+                    print(f"Error retrieving syllabus: {e}")
+        
         # Summarize if context is too long (prevent token bloat)
         context_text = summarize_long_context(context_text, max_length=2000)
         
@@ -75,6 +211,8 @@ async def chat(req: ChatRequest):
             full_context += f"Structured Information:\n{req.structured_context}\n\n"
         if context_text:
             full_context += f"Additional Context from Memory:\n{context_text}"
+        if syllabus_context:
+            full_context += f"\n\nRelevant Syllabus Content:\n{syllabus_context}"
         
         # Build personalized prompt with structured instructions
         name_greeting = f"Hi {req.user_name}!" if req.user_name else "Hello!"
@@ -132,7 +270,7 @@ ACTIONS (include in Actions: JSON array):
 - mark_attendance: {{"type":"mark_attendance","data":{{"courseId":"..." OR "courseName":"...","classScheduleId":"..." OR "day":"Mon|Tue|Wed|Thu|Fri|Sat|Sun" AND "time":"HH:MM","status":"present|absent|late","date":"YYYY-MM-DD" (optional, default today),"notes":"..." (optional)}}}}
 - update_attendance: {{"type":"update_attendance","data":{{"attendance_id":"...","status":"present|absent|late","notes":"..." (optional)}}}}
 - delete_attendance: {{"type":"delete_attendance","data":{{"attendance_id":"..."}}}}
-- add_assignment: {{"type":"add_assignment","data":{{"courseId":"..." OR "courseName":"...","title":"...","description":"..." (optional),"dueDate":"YYYY-MM-DD" (optional),"startDate":"YYYY-MM-DD" (optional),"estimatedHours":N (optional),"status":"pending|in_progress|completed" (optional, default "pending"),"points":N (optional)}}}}
+- add_assignment: {{"type":"add_assignment","data":{{"courseId":"..." OR "courseName":"...","title":"...","description":"..." (optional),"dueDate":"YYYY-MM-DD" (optional),"startDate":"YYYY-MM-DD" (optional),"estimatedHours":N (optional),"status":"pending|in_progress|completed" (optional, default "pending"),"points":N (optional),"examId":"..." (optional, link to exam if this is exam preparation task)}}}}
 - update_assignment: {{"type":"update_assignment","data":{{"assignment_id":"...","title":"...","description":"...","dueDate":"YYYY-MM-DD","startDate":"YYYY-MM-DD","estimatedHours":N,"status":"pending|in_progress|completed","points":N}}}}
 - delete_assignment: {{"type":"delete_assignment","data":{{"assignment_id":"..."}}}}
 
@@ -170,11 +308,14 @@ COURSE CREATION RULES:
 
 - For SCHOOL/COLLEGE users (education level is "school" or "college"):
   * Required: Subject name (courseName/name)
-  * Required: Group (science/commerce/arts) - Check if user is in class 9-10 (school) or any college year
-    - If user is in class 9-10 (school) or college → Group is REQUIRED
-    - If user is in class 6-8 (school) → Group is NOT required
+  * Group (science/commerce/arts) handling:
+    - CRITICAL: Check structured context for user's group (format: "Education: school|college, Class: X, Year: X, Group: X")
+    - If user is in class 9-10 (school) or college AND group exists in context → Use that group automatically, DO NOT ask
+    - If user is in class 9-10 (school) or college AND group is missing from context → Ask: "Which group is this subject in? (Science, Commerce, or Arts)"
+    - If user is in class 6-8 (school) → Group is NOT required, skip it
   * DO NOT ask for: course code, credits, semester, year (these are not used for school/college)
-  * Example: "I want to add Physics" → Ask: "Which group is Physics in? (Science, Commerce, or Arts)"
+  * Example: "I want to add Physics" → If group exists in context, use it automatically: "Got it! I've added Physics to your subjects under the [Group] group."
+  * Example: "I want to add Physics" → If group missing, ask: "Which group is Physics in? (Science, Commerce, or Arts)"
   * When creating: Set courseCode to null, credits to null, description to group value
 
 - For UNIVERSITY users (education level is "university"):
@@ -264,6 +405,27 @@ HABIT RULES:
 - Support any type of habit (exercise, reading, meditation, etc.)
 - For toggle: Mark habit as completed/incomplete for today
 - If user says "I completed [habit name]" → Use toggle_habit action
+
+EXAM PREPARATION TASK GENERATION:
+- When user mentions an exam (midterm, final, quiz) with date and chapters:
+  * Extract: exam date, course/subject name, chapters/topics to cover
+  * Use the Relevant Syllabus Content provided above to understand what needs to be studied
+  * Generate time-distributed preparation tasks:
+    - Break down chapters into study sessions
+    - Distribute tasks across days leading up to exam date
+    - Set appropriate due dates (e.g., "Study Chapter 1" due 5 days before exam)
+    - Create review tasks closer to exam date (e.g., "Review all chapters" due 1 day before)
+  * Calculate days until exam: (exam_date - {current_date_iso})
+  * Example: 7 days before exam, 5 chapters → 1 chapter per day for first 5 days, review on days 6-7
+  * Create multiple add_assignment actions with:
+    - title: "Study Chapter X" or "Review [topic]"
+    - courseName: [course name from message]
+    - dueDate: [calculated date before exam]
+    - description: Brief description based on syllabus content
+    - estimatedHours: Estimate based on chapter complexity (1-3 hours)
+    - examId: [if exam exists in context, link to it]
+  * IMPORTANT: All exam preparation tasks should have due dates BEFORE the exam date
+  * Spread tasks evenly: if 5 chapters and 7 days, do 1 chapter per day for 5 days, then review
 
 ANALYSIS MODE:
 - When user asks analysis questions (e.g., "How am I spending?", "How's my mood?", "Am I consistent with habits?"):
@@ -427,6 +589,9 @@ Assistant:"""
                 # Generate embeddings for all chunks at once (more efficient)
                 embeddings = gemini_embedding(chunks)
                 
+                # Convert embeddings to numpy arrays for ChromaDB type compatibility
+                embeddings_array = [np.array(emb) for emb in embeddings]
+                
                 # Prepare metadata and IDs for all chunks
                 chunk_ids = []
                 chunk_metadatas = []
@@ -448,16 +613,18 @@ Assistant:"""
                 collection.add(
                     documents=chunks,
                     ids=chunk_ids,
-                    embeddings=embeddings,
+                    embeddings=embeddings_array,
                     metadatas=chunk_metadatas
                 )
             else:
                 # Short conversation - store as single document
                 emb = gemini_embedding([conversation_text])[0]
+                # Convert embedding to numpy array for ChromaDB type compatibility
+                emb_array = np.array(emb)
                 collection.add(
                     documents=[conversation_text],
                     ids=[base_doc_id],
-                    embeddings=[emb],
+                    embeddings=[emb_array],
                     metadatas=[{
                         "user_id": req.user_id,
                         "type": "chat",
