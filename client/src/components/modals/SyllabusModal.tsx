@@ -344,7 +344,7 @@ export function SyllabusModal({
               }}
               className="w-full"
             >
-              View Assignments
+              Done
             </Button>
           </DialogFooter>
         </DialogContent>

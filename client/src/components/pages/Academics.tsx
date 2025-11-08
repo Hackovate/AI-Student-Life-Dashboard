@@ -1,4 +1,4 @@
-import { Plus, AlertCircle, Pencil, Trash2, Clock } from 'lucide-react';
+import { Plus, AlertCircle, Pencil, Trash2, Clock, CheckCircle2 } from 'lucide-react';
 import { Card } from '../ui/card';
 import { Button } from '../ui/button';
 import { Badge } from '../ui/badge';
@@ -12,6 +12,7 @@ import { AssignmentDialog } from '../modals/AssignmentDialog';
 import { ScheduleModal } from '../modals/ScheduleModal';
 import { AttendanceModal } from '../modals/AttendanceModal';
 import { SyllabusModal } from '../modals/SyllabusModal';
+import { WeeklyCalendar } from '../WeeklyCalendar';
 
 export function Academics() {
   const { user: authUser } = useAuth();
@@ -98,6 +99,12 @@ export function Academics() {
         );
         const nextDueDate = sortedByDueDate.length > 0 ? sortedByDueDate[0].dueDate : null;
         
+        // Calculate assignment progress
+        const total = c.assignments?.length || 0;
+        const completed = c.assignments?.filter((a: any) => a.status === 'completed').length || 0;
+        const percentage = total > 0 ? Math.round((completed / total) * 100) : 0;
+        const isCompleted = total > 0 && completed === total;
+        
         return {
           id: c.id,
           name: c.courseName,
@@ -112,7 +119,8 @@ export function Academics() {
           classSchedule: c.classSchedule || [],
           assignmentsList: c.assignments || [],
           examsList: c.exams || [],
-          nextDueDate: nextDueDate
+          nextDueDate: nextDueDate,
+          assignmentProgress: { total, completed, percentage, isCompleted }
         };
       }));
 
@@ -263,7 +271,18 @@ export function Academics() {
     setAssignmentModalOpen(true);
   };
 
-  const handleEditAssignment = (assignment: any) => {
+  const handleEditAssignment = async (assignment: any) => {
+    // If assignment object has been updated (e.g., status change), reload data
+    if (assignment.id && assignment._isToggle) {
+      try {
+        await loadData();
+        return;
+      } catch (err) {
+        console.error('Reload data failed', err);
+        return;
+      }
+    }
+    // Otherwise, open edit modal
     setSelectedAssignment(assignment);
     setModalMode('edit');
   };
@@ -323,8 +342,10 @@ export function Academics() {
     }
   };
 
-  const handleGenerateSyllabusTasks = async (months: number) => {
-    if (!selectedCourse) return;
+  const handleGenerateSyllabusTasks = async (months: number): Promise<{ message?: string; assignments?: any[] }> => {
+    if (!selectedCourse) {
+      return { message: 'No course selected', assignments: [] };
+    }
     setSyllabusLoading(true);
     try {
       const result = await coursesAPI.generateSyllabusTasks(selectedCourse.id, months);
@@ -383,7 +404,7 @@ export function Academics() {
   };
 
   const totalCourses = subjects.length;
-  const totalPendingAssignments = subjects.reduce((sum, s) => sum + (s.assignments || 0), 0);
+  const completedCourses = subjects.filter((s) => s.assignmentProgress?.isCompleted === true).length;
 
   return (
     <div className="space-y-4">
@@ -452,10 +473,27 @@ export function Academics() {
       />
       <AttendanceModal
         open={attendanceModalOpen}
-        onClose={() => setAttendanceModalOpen(false)}
+        onClose={() => {
+          setAttendanceModalOpen(false);
+          setSelectedSchedule(null);
+        }}
         courseId={selectedCourse?.id || ''}
         courseName={selectedCourse?.name || ''}
         onAttendanceUpdate={loadData}
+        onScheduleEdit={(schedule) => {
+          setSelectedSchedule(schedule);
+          setModalMode('edit');
+          setScheduleModalOpen(true);
+        }}
+        onScheduleDelete={async (scheduleId) => {
+          try {
+            await coursesAPI.deleteSchedule(scheduleId);
+            await loadData();
+          } catch (err) {
+            console.error('Delete schedule failed', err);
+            alert('Failed to delete schedule');
+          }
+        }}
       />
       {selectedCourse && (
         <SyllabusModal
@@ -586,6 +624,26 @@ export function Academics() {
                     >
                       Schedule
                     </Button>
+                    {/* Progress Indicator */}
+                    {subject.assignmentProgress && (
+                      <Badge
+                        variant="outline"
+                        className={`justify-center w-full text-xs ${
+                          subject.assignmentProgress.percentage === 100
+                            ? 'bg-green-100 text-green-700 dark:bg-green-950 dark:text-green-300 border-green-300 dark:border-green-700'
+                            : subject.assignmentProgress.percentage > 0
+                            ? 'bg-yellow-100 text-yellow-700 dark:bg-yellow-950 dark:text-yellow-300 border-yellow-300 dark:border-yellow-700'
+                            : 'bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-300 border-gray-300 dark:border-gray-600'
+                        }`}
+                      >
+                        {subject.assignmentProgress.percentage === 100 && (
+                          <CheckCircle2 className="w-3 h-3 mr-1" />
+                        )}
+                        {subject.assignmentProgress.total > 0
+                          ? `${subject.assignmentProgress.percentage}% (${subject.assignmentProgress.completed}/${subject.assignmentProgress.total} tasks)`
+                          : 'No tasks'}
+                      </Badge>
+                    )}
                     <Button
                       type="button"
                       variant="outline"
@@ -747,6 +805,11 @@ export function Academics() {
         </div>
       </div>
 
+      {/* Weekly Calendar */}
+      <div className="mb-4">
+        <WeeklyCalendar courses={subjects} exams={upcomingExams} />
+      </div>
+
       {/* Upcoming Exams & Performance */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
         {/* Upcoming Exams */}
@@ -813,9 +876,9 @@ export function Academics() {
               <p className="text-blue-700 dark:text-blue-300 text-xs mb-0.5">Courses</p>
               <p className="text-blue-900 dark:text-blue-100 text-xl font-semibold">{totalCourses}</p>
             </div>
-            <div className="p-2.5 bg-violet-50 dark:bg-violet-950 border border-violet-200 dark:border-violet-800 rounded-lg">
-              <p className="text-violet-700 dark:text-violet-300 text-xs mb-0.5">Pending</p>
-              <p className="text-violet-900 dark:text-violet-100 text-xl font-semibold">{totalPendingAssignments}</p>
+            <div className="p-2.5 bg-green-50 dark:bg-green-950 border border-green-200 dark:border-green-800 rounded-lg">
+              <p className="text-green-700 dark:text-green-300 text-xs mb-0.5">Completed</p>
+              <p className="text-green-900 dark:text-green-100 text-xl font-semibold">{completedCourses}</p>
             </div>
           </div>
         </Card>

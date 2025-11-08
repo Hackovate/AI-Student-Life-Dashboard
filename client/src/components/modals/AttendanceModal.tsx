@@ -3,8 +3,8 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } f
 import { Button } from '../ui/button';
 import { Badge } from '../ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '../ui/tabs';
-import { Check, X, Clock, Calendar, MapPin } from 'lucide-react';
-import { attendanceAPI } from '@/lib/api';
+import { Check, X, Clock, Calendar, MapPin, Pencil, Trash2 } from 'lucide-react';
+import { attendanceAPI, coursesAPI } from '@/lib/api';
 
 interface AttendanceModalProps {
   open: boolean;
@@ -12,9 +12,19 @@ interface AttendanceModalProps {
   courseId: string;
   courseName: string;
   onAttendanceUpdate: () => void;
+  onScheduleEdit?: (schedule: any) => void;
+  onScheduleDelete?: (scheduleId: string) => void;
 }
 
-export function AttendanceModal({ open, onClose, courseId, courseName, onAttendanceUpdate }: AttendanceModalProps) {
+export function AttendanceModal({ 
+  open, 
+  onClose, 
+  courseId, 
+  courseName, 
+  onAttendanceUpdate,
+  onScheduleEdit,
+  onScheduleDelete
+}: AttendanceModalProps) {
   const [todaysClasses, setTodaysClasses] = useState<any[]>([]);
   const [allSchedules, setAllSchedules] = useState<any[]>([]);
   const [stats, setStats] = useState<any>(null);
@@ -188,7 +198,7 @@ export function AttendanceModal({ open, onClose, courseId, courseName, onAttenda
                   {allSchedules.map((schedule) => (
                     <div
                       key={schedule.id}
-                      className="p-3 border border-border rounded-lg bg-card"
+                      className="p-3 border border-border rounded-lg bg-card hover:bg-accent/50 transition-colors"
                     >
                       <div className="flex items-center justify-between mb-2">
                         <div className="flex items-center gap-2 flex-wrap">
@@ -196,6 +206,42 @@ export function AttendanceModal({ open, onClose, courseId, courseName, onAttenda
                           <span className="text-sm text-muted-foreground">{schedule.time}</span>
                           {getTypeBadge(schedule.type)}
                         </div>
+                        {(onScheduleEdit || onScheduleDelete) && (
+                          <div className="flex items-center gap-1">
+                            {onScheduleEdit && (
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                className="h-7 w-7"
+                                onClick={() => onScheduleEdit(schedule)}
+                                title="Edit Schedule"
+                              >
+                                <Pencil className="h-3.5 w-3.5" />
+                              </Button>
+                            )}
+                            {onScheduleDelete && (
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                className="h-7 w-7 text-destructive hover:text-destructive"
+                                onClick={async () => {
+                                  if (confirm('Are you sure you want to delete this schedule?')) {
+                                    if (onScheduleDelete) {
+                                      await onScheduleDelete(schedule.id);
+                                    } else {
+                                      await coursesAPI.deleteSchedule(schedule.id);
+                                    }
+                                    await loadData();
+                                    onAttendanceUpdate();
+                                  }
+                                }}
+                                title="Delete Schedule"
+                              >
+                                <Trash2 className="h-3.5 w-3.5" />
+                              </Button>
+                            )}
+                          </div>
+                        )}
                       </div>
                       {schedule.location && (
                         <div className="flex items-center gap-1.5 text-xs text-muted-foreground mb-2">

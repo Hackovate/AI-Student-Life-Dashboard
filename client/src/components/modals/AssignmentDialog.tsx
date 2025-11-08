@@ -6,8 +6,9 @@ import { Label } from '../ui/label';
 import { Textarea } from '../ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../ui/select';
 import { Badge } from '../ui/badge';
-import { Pencil, Trash2 } from 'lucide-react';
+import { Pencil, Trash2, CheckCircle2, Circle } from 'lucide-react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '../ui/tabs';
+import { coursesAPI } from '@/lib/api';
 
 interface AssignmentDialogProps {
   open: boolean;
@@ -32,6 +33,13 @@ export function AssignmentDialog({
   courseName,
   editingAssignment 
 }: AssignmentDialogProps) {
+  const [localAssignments, setLocalAssignments] = useState(assignments);
+  
+  // Update local assignments when prop changes
+  useEffect(() => {
+    setLocalAssignments(assignments);
+  }, [assignments]);
+
   const [formData, setFormData] = useState({
     title: '',
     description: '',
@@ -96,6 +104,50 @@ export function AssignmentDialog({
   const handleDeleteClick = (assignmentId: string) => {
     if (confirm('Delete this assignment?')) {
       onDelete(assignmentId);
+    }
+  };
+
+  const handleToggleComplete = async (assignment: any) => {
+    // Toggle between completed and pending
+    const currentStatus = assignment.status?.toLowerCase() || 'pending';
+    const newStatus = currentStatus === 'completed' ? 'pending' : 'completed';
+    
+    // Optimistically update local state for immediate UI feedback
+    setLocalAssignments(prev => 
+      prev.map(a => 
+        a.id === assignment.id 
+          ? { ...a, status: newStatus }
+          : a
+      )
+    );
+    
+    try {
+      // Directly update the assignment status via API
+      const updateData = {
+        title: assignment.title,
+        description: assignment.description || null,
+        startDate: assignment.startDate || null,
+        dueDate: assignment.dueDate || null,
+        estimatedHours: assignment.estimatedHours || null,
+        status: newStatus,
+        points: assignment.points || null
+      };
+      
+      await coursesAPI.updateAssignment(assignment.id, updateData);
+      
+      // Notify parent to reload data (mark as toggle to avoid opening edit modal)
+      onEdit({ ...assignment, status: newStatus, _isToggle: true });
+    } catch (error) {
+      console.error('Error toggling assignment status:', error);
+      // Revert optimistic update on error
+      setLocalAssignments(prev => 
+        prev.map(a => 
+          a.id === assignment.id 
+            ? { ...a, status: currentStatus }
+            : a
+        )
+      );
+      alert('Failed to update assignment status');
     }
   };
 
@@ -233,14 +285,14 @@ export function AssignmentDialog({
 
             {/* Filter assignments based on sub-tab */}
             {(() => {
-              let filteredAssignments = assignments;
+              let filteredAssignments = localAssignments;
               
               if (activeSubTab === 'exam-prep') {
                 // Show assignments linked to exams
-                filteredAssignments = assignments.filter((a: any) => a.examId != null);
+                filteredAssignments = localAssignments.filter((a: any) => a.examId != null);
               } else if (activeSubTab === 'study-plan') {
                 // Show syllabus-generated or AI-generated without examId
-                filteredAssignments = assignments.filter((a: any) => 
+                filteredAssignments = localAssignments.filter((a: any) => 
                   a.syllabusGenerated === true || (a.aiGenerated === true && !a.examId)
                 );
               }
@@ -270,13 +322,29 @@ export function AssignmentDialog({
                     className="rounded-lg border border-border/60 p-4 hover:bg-muted/50 transition-colors"
                   >
                     <div className="flex items-start justify-between gap-3">
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-center gap-2 mb-2 flex-wrap">
-                          <h4 className="text-sm font-semibold text-foreground truncate">
-                            {assignment.title}
-                          </h4>
+                      <div className="flex items-start gap-2 flex-1 min-w-0">
+                        {/* Checkbox for completion */}
+                        <button
+                          type="button"
+                          onClick={() => handleToggleComplete(assignment)}
+                          className="mt-0.5 flex-shrink-0"
+                          aria-label={assignment.status?.toLowerCase() === 'completed' ? 'Mark as incomplete' : 'Mark as complete'}
+                        >
+                          {(assignment.status?.toLowerCase() === 'completed') ? (
+                            <CheckCircle2 className="w-5 h-5 text-green-600 dark:text-green-400" />
+                          ) : (
+                            <Circle className="w-5 h-5 text-muted-foreground hover:text-foreground transition-colors" />
+                          )}
+                        </button>
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-2 mb-2 flex-wrap">
+                            <h4 className={`text-sm font-semibold truncate ${
+                              assignment.status?.toLowerCase() === 'completed' ? 'line-through opacity-60' : 'text-foreground'
+                            }`}>
+                              {assignment.title}
+                            </h4>
                           <Badge
-                            variant={assignment.status === 'completed' ? 'default' : 'secondary'}
+                            variant={assignment.status?.toLowerCase() === 'completed' ? 'default' : 'secondary'}
                             className="text-[0.65rem] capitalize shrink-0"
                           >
                             {assignment.status}
@@ -289,29 +357,32 @@ export function AssignmentDialog({
                               AI Generated
                             </Badge>
                           )}
-                        </div>
-                        {assignment.description && (
-                          <p className="text-xs text-muted-foreground mb-2 line-clamp-2">
-                            {assignment.description}
-                          </p>
-                        )}
-                        <div className="flex flex-wrap items-center gap-3 text-xs text-muted-foreground">
-                          {assignment.startDate && (
-                            <span>
-                              Start: {new Date(assignment.startDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
-                            </span>
+                          </div>
+                          {assignment.description && (
+                            <p className={`text-xs mb-2 line-clamp-2 ${
+                              assignment.status?.toLowerCase() === 'completed' ? 'line-through opacity-60 text-muted-foreground' : 'text-muted-foreground'
+                            }`}>
+                              {assignment.description}
+                            </p>
                           )}
-                          {assignment.dueDate && (
-                            <span>
-                              Due: {new Date(assignment.dueDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
-                            </span>
-                          )}
-                          {assignment.estimatedHours && (
-                            <span>Est. {assignment.estimatedHours}h</span>
-                          )}
-                          {assignment.points && (
-                            <span>{assignment.points} points</span>
-                          )}
+                          <div className="flex flex-wrap items-center gap-3 text-xs text-muted-foreground">
+                            {assignment.startDate && (
+                              <span>
+                                Start: {new Date(assignment.startDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
+                              </span>
+                            )}
+                            {assignment.dueDate && (
+                              <span>
+                                Due: {new Date(assignment.dueDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
+                              </span>
+                            )}
+                            {assignment.estimatedHours && (
+                              <span>Est. {assignment.estimatedHours}h</span>
+                            )}
+                            {assignment.points && (
+                              <span>{assignment.points} points</span>
+                            )}
+                          </div>
                         </div>
                       </div>
                       <div className="flex items-center gap-1 shrink-0">
