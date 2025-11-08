@@ -743,6 +743,8 @@ export const chat = async (req: Request, res: Response) => {
                       userId,
                       name: milestone.name,
                       completed: milestone.completed || false,
+                      status: milestone.status || (milestone.completed ? 'completed' : 'pending'),
+                      dueDate: milestone.dueDate ? new Date(milestone.dueDate) : null,
                       order: milestone.order !== undefined ? milestone.order : index
                     }))
                   });
@@ -810,6 +812,8 @@ export const chat = async (req: Request, res: Response) => {
                     userId,
                     name: milestone.name,
                     completed: milestone.completed || false,
+                    status: milestone.status || (milestone.completed ? 'completed' : 'pending'),
+                    dueDate: milestone.dueDate ? new Date(milestone.dueDate) : null,
                     order: milestone.order !== undefined ? milestone.order : index
                   }))
                 });

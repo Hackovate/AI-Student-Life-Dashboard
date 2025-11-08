@@ -1,12 +1,12 @@
 import { useState, useEffect } from 'react';
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from '../ui/dialog';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '../ui/dialog';
 import { Button } from '../ui/button';
 import { Input } from '../ui/input';
 import { Label } from '../ui/label';
 import { Textarea } from '../ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../ui/select';
 import { Badge } from '../ui/badge';
-import { Plus, Trash2, Check, Link as LinkIcon, FileText, Upload, ExternalLink } from 'lucide-react';
+import { Plus, Trash2, Check, CheckCircle2, Circle, Link as LinkIcon, FileText, Upload, ExternalLink } from 'lucide-react';
 import { skillsAPI } from '@/lib/api';
 
 interface SkillModalProps {
@@ -38,6 +38,7 @@ export function SkillModal({ open, onClose, onSave, skill, mode }: SkillModalPro
   // Milestones
   const [milestones, setMilestones] = useState<any[]>([]);
   const [newMilestone, setNewMilestone] = useState('');
+  const [newMilestoneDueDate, setNewMilestoneDueDate] = useState('');
 
   // Learning Resources
   const [resources, setResources] = useState<any[]>([]);
@@ -65,7 +66,12 @@ export function SkillModal({ open, onClose, onSave, skill, mode }: SkillModalPro
           endDate: skill.endDate ? new Date(skill.endDate).toISOString().split('T')[0] : '',
           goalStatement: skill.goalStatement || ''
         });
-        setMilestones(skill.milestones || []);
+        // Ensure milestones have status field (migrate from completed if needed)
+        const milestonesWithStatus = (skill.milestones || []).map((m: any) => ({
+          ...m,
+          status: m.status || (m.completed ? 'completed' : 'pending')
+        }));
+        setMilestones(milestonesWithStatus);
         setResources(skill.learningResources || []);
       } else {
         resetForm();
@@ -89,6 +95,7 @@ export function SkillModal({ open, onClose, onSave, skill, mode }: SkillModalPro
     setMilestones([]);
     setResources([]);
     setNewMilestone('');
+    setNewMilestoneDueDate('');
     setShowResourceForm(false);
     setResourceForm({ title: '', type: 'link', url: '', content: '', description: '' });
     setCurrentTab('basic');
@@ -109,6 +116,8 @@ export function SkillModal({ open, onClose, onSave, skill, mode }: SkillModalPro
           milestones: milestones.map((m, index) => ({
             name: m.name || m,
             completed: m.completed || false,
+            status: m.status || (m.completed ? 'completed' : 'pending'),
+            dueDate: m.dueDate || null,
             order: index
           }))
         });
@@ -123,6 +132,8 @@ export function SkillModal({ open, onClose, onSave, skill, mode }: SkillModalPro
             await skillsAPI.addMilestone(skill.id, {
               name: milestone.name,
               completed: milestone.completed || false,
+              status: milestone.status || (milestone.completed ? 'completed' : 'pending'),
+              dueDate: milestone.dueDate || null,
               order: milestones.indexOf(milestone)
             });
           }
@@ -141,9 +152,23 @@ export function SkillModal({ open, onClose, onSave, skill, mode }: SkillModalPro
 
   const handleAddMilestone = () => {
     if (newMilestone.trim()) {
-      setMilestones([...milestones, { name: newMilestone, completed: false }]);
+      setMilestones([...milestones, { 
+        name: newMilestone, 
+        completed: false,
+        status: 'pending',
+        dueDate: newMilestoneDueDate || null
+      }]);
       setNewMilestone('');
+      setNewMilestoneDueDate('');
     }
+  };
+
+  // Helper function to get next status in cycle: pending → in-progress → completed → pending
+  const getNextStatus = (current: string): string => {
+    const normalized = current?.toLowerCase() || 'pending';
+    if (normalized === 'pending') return 'in-progress';
+    if (normalized === 'in-progress') return 'completed';
+    return 'pending'; // completed → pending
   };
 
   const handleRemoveMilestone = async (index: number) => {
@@ -171,29 +196,71 @@ export function SkillModal({ open, onClose, onSave, skill, mode }: SkillModalPro
     }
   };
 
-  const handleToggleMilestone = async (index: number) => {
-    if (mode === 'edit' && milestones[index].id) {
-      // Toggle on backend
-      try {
-        await skillsAPI.toggleMilestone(milestones[index].id);
-        const updatedMilestones = [...milestones];
-        updatedMilestones[index].completed = !updatedMilestones[index].completed;
-        setMilestones(updatedMilestones);
-        
-        // Trigger parent refresh to update progress display
-        if (onSave) {
-          onSave();
+  const handleToggleMilestone = async (milestoneToUpdate: any) => {
+    if (!milestoneToUpdate) return;
+    
+    const currentStatus = milestoneToUpdate.status || (milestoneToUpdate.completed ? 'completed' : 'pending');
+    const newStatus = getNextStatus(currentStatus);
+    
+    // Optimistically update local state for immediate UI feedback
+    // Use functional update to ensure we're working with latest state
+    setMilestones(prev => {
+      const updated = prev.map(m => {
+        // Match by ID if available (most reliable)
+        if (milestoneToUpdate.id && m.id === milestoneToUpdate.id) {
+          return {
+            ...m,
+            status: newStatus,
+            completed: newStatus === 'completed'
+          };
         }
+        // For milestones without ID, match by name and current status
+        if (!milestoneToUpdate.id && !m.id && m.name === milestoneToUpdate.name) {
+          const mStatus = m.status || (m.completed ? 'completed' : 'pending');
+          // Match by name and current status to ensure we're updating the right one
+          if (mStatus === currentStatus) {
+            return {
+              ...m,
+              status: newStatus,
+              completed: newStatus === 'completed'
+            };
+          }
+        }
+        return m;
+      });
+      return updated;
+    });
+    
+    if (mode === 'edit' && milestoneToUpdate.id) {
+      // Update on backend
+      try {
+        await skillsAPI.updateMilestone(milestoneToUpdate.id, {
+          status: newStatus,
+          completed: newStatus === 'completed'
+        });
+        
+        // Don't call onSave here as it closes the modal
+        // The parent will refresh when modal is closed or when Update Skill is clicked
       } catch (error) {
         console.error('Error toggling milestone:', error);
+        // Revert optimistic update on error
+        setMilestones(prev => 
+          prev.map(m => {
+            if (milestoneToUpdate.id && m.id === milestoneToUpdate.id) {
+              return milestoneToUpdate;
+            } else if (!milestoneToUpdate.id && !m.id && m.name === milestoneToUpdate.name) {
+              const mStatus = m.status || (m.completed ? 'completed' : 'pending');
+              if (mStatus === newStatus) {
+                return milestoneToUpdate;
+              }
+            }
+            return m;
+          })
+        );
         alert('Failed to toggle milestone');
       }
-    } else {
-      // Toggle locally for new milestones
-      const updatedMilestones = [...milestones];
-      updatedMilestones[index].completed = !updatedMilestones[index].completed;
-      setMilestones(updatedMilestones);
     }
+    // For new milestones without ID, the optimistic update above is sufficient
   };
 
   const handleAddResource = async () => {
@@ -239,6 +306,9 @@ export function SkillModal({ open, onClose, onSave, skill, mode }: SkillModalPro
           <DialogTitle className="text-2xl font-semibold">
             {mode === 'create' ? 'Add New Skill' : 'Edit Skill'}
           </DialogTitle>
+          <DialogDescription className="sr-only">
+            {mode === 'create' ? 'Create a new skill to track your learning progress' : 'Edit your skill details, milestones, and resources'}
+          </DialogDescription>
         </DialogHeader>
 
         {/* Tabs */}
@@ -432,27 +502,41 @@ export function SkillModal({ open, onClose, onSave, skill, mode }: SkillModalPro
           {/* Milestones Tab */}
           {currentTab === 'milestones' && (
             <div className="space-y-6 max-w-2xl">
-              <div className="flex gap-3">
-                <Input
-                  value={newMilestone}
-                  onChange={(e) => setNewMilestone(e.target.value)}
-                  placeholder="Add a milestone..."
-                  className="h-11 flex-1"
-                  onKeyPress={(e) => {
-                    if (e.key === 'Enter') {
-                      e.preventDefault();
-                      handleAddMilestone();
-                    }
-                  }}
-                />
-                <Button 
-                  onClick={handleAddMilestone} 
-                  disabled={!newMilestone.trim()}
-                  className="h-11 px-6"
-                >
-                  <Plus className="w-4 h-4 mr-2" />
-                  Add
-                </Button>
+              <div className="space-y-3">
+                <div className="flex gap-3">
+                  <Input
+                    value={newMilestone}
+                    onChange={(e) => setNewMilestone(e.target.value)}
+                    placeholder="Add a milestone..."
+                    className="h-11 flex-1"
+                    onKeyPress={(e) => {
+                      if (e.key === 'Enter') {
+                        e.preventDefault();
+                        handleAddMilestone();
+                      }
+                    }}
+                  />
+                  <Button 
+                    onClick={handleAddMilestone} 
+                    disabled={!newMilestone.trim()}
+                    className="h-11 px-6"
+                  >
+                    <Plus className="w-4 h-4 mr-2" />
+                    Add
+                  </Button>
+                </div>
+                <div>
+                  <Label htmlFor="milestoneDueDate" className="text-sm text-muted-foreground">
+                    Due Date (Optional)
+                  </Label>
+                  <Input
+                    id="milestoneDueDate"
+                    type="date"
+                    value={newMilestoneDueDate}
+                    onChange={(e) => setNewMilestoneDueDate(e.target.value)}
+                    className="h-11 mt-1"
+                  />
+                </div>
               </div>
 
               {milestones.length === 0 ? (
@@ -467,36 +551,139 @@ export function SkillModal({ open, onClose, onSave, skill, mode }: SkillModalPro
                 </div>
               ) : (
                 <div className="space-y-2">
-                  {milestones.map((milestone, index) => (
-                    <div
-                      key={index}
-                      className="flex items-center gap-3 p-4 border rounded-lg bg-card hover:bg-accent/50 transition-colors"
-                    >
-                      <button
-                        onClick={() => handleToggleMilestone(index)}
-                        className={`w-5 h-5 rounded-full border-2 flex items-center justify-center flex-shrink-0 transition-all ${
-                          milestone.completed
-                            ? 'bg-green-500 border-green-500'
-                            : 'bg-background border-muted-foreground hover:border-green-500'
-                        }`}
-                      >
-                        {milestone.completed && <Check className="w-3 h-3 text-white" />}
-                      </button>
-                      <span className={`flex-1 ${
-                        milestone.completed ? 'line-through text-muted-foreground' : 'text-foreground'
-                      }`}>
-                        {milestone.name}
-                      </span>
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        className="h-8 w-8 text-muted-foreground hover:text-destructive"
-                        onClick={() => handleRemoveMilestone(index)}
-                      >
-                        <Trash2 className="w-4 h-4" />
-                      </Button>
-                    </div>
-                  ))}
+                  {(() => {
+                    // Create a map of milestone IDs to their original indices for accurate index tracking
+                    const milestoneIndexMap = new Map();
+                    milestones.forEach((m, idx) => {
+                      milestoneIndexMap.set(m.id || `temp-${idx}`, idx);
+                    });
+                    
+                    // Sort milestones: in-progress at top, pending with near due dates next, completed at bottom
+                    const sortedMilestones = [...milestones].sort((a: any, b: any) => {
+                      const statusA = a.status?.toLowerCase() || (a.completed ? 'completed' : 'pending');
+                      const statusB = b.status?.toLowerCase() || (b.completed ? 'completed' : 'pending');
+                      
+                      // Helper to check if due date is near (within 7 days)
+                      const isDueDateNear = (dueDate: string | null | undefined): boolean => {
+                        if (!dueDate) return false;
+                        const due = new Date(dueDate);
+                        const today = new Date();
+                        today.setHours(0, 0, 0, 0);
+                        const diffTime = due.getTime() - today.getTime();
+                        const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+                        return diffDays >= 0 && diffDays <= 7;
+                      };
+                      
+                      // Priority order: in-progress > pending (with near due) > pending (other) > completed
+                      const getPriority = (milestone: any): number => {
+                        const status = milestone.status?.toLowerCase() || (milestone.completed ? 'completed' : 'pending');
+                        if (status === 'in-progress') return 1;
+                        if (status === 'pending' && isDueDateNear(milestone.dueDate)) return 2;
+                        if (status === 'pending') return 3;
+                        return 4; // completed
+                      };
+                      
+                      const priorityA = getPriority(a);
+                      const priorityB = getPriority(b);
+                      
+                      if (priorityA !== priorityB) {
+                        return priorityA - priorityB;
+                      }
+                      
+                      // If same priority, sort by due date (earlier first) for pending items
+                      if (priorityA === 2 || priorityA === 3) {
+                        const dueA = a.dueDate ? new Date(a.dueDate).getTime() : Infinity;
+                        const dueB = b.dueDate ? new Date(b.dueDate).getTime() : Infinity;
+                        return dueA - dueB;
+                      }
+                      
+                      // For completed items, maintain original order
+                      return 0;
+                    });
+                    
+                    return sortedMilestones.map((milestone, sortedIndex) => {
+                      // Find the original index by ID (most reliable) or by name
+                      let originalIndex = -1;
+                      
+                      if (milestone.id) {
+                        // Use ID to find the original index
+                        originalIndex = milestones.findIndex(m => m.id === milestone.id);
+                      } else {
+                        // For milestones without ID, find by matching name
+                        // Since names might not be unique, we need to be careful
+                        // Find the first milestone with matching name that hasn't been used yet
+                        const usedIndices = new Set();
+                        originalIndex = milestones.findIndex((m, idx) => {
+                          if (m.id || m.name !== milestone.name) return false;
+                          if (usedIndices.has(idx)) return false;
+                          usedIndices.add(idx);
+                          return true;
+                        });
+                      }
+                      
+                      // Fallback: use the map if available
+                      if (originalIndex === -1 && milestone.id) {
+                        originalIndex = milestoneIndexMap.get(milestone.id) ?? 0;
+                      } else if (originalIndex === -1) {
+                        // Last resort: use sorted index (not ideal but better than crashing)
+                        originalIndex = sortedIndex;
+                      }
+                      
+                      // Get current status from the milestone object (this will reflect optimistic updates)
+                      const status = milestone.status?.toLowerCase() || (milestone.completed ? 'completed' : 'pending');
+                      
+                      return (
+                        <div
+                          key={milestone.id ? `${milestone.id}-${status}` : `milestone-${originalIndex}-${status}`}
+                          className="flex items-center gap-3 p-4 border rounded-lg bg-card hover:bg-accent/50 transition-colors"
+                        >
+                          {/* Status icon - 3 states: pending (gray), in-progress (yellow), completed (green) */}
+                          <button
+                            type="button"
+                            onClick={() => handleToggleMilestone(milestone)}
+                            className="mt-0.5 flex-shrink-0"
+                            aria-label={
+                              status === 'completed' 
+                                ? 'Mark as pending' 
+                                : status === 'in-progress'
+                                ? 'Mark as completed'
+                                : 'Mark as in progress'
+                            }
+                          >
+                            {(() => {
+                              if (status === 'completed') {
+                                return <CheckCircle2 className="w-5 h-5 text-green-600 dark:text-green-400" />;
+                              } else if (status === 'in-progress') {
+                                return <Circle className="w-5 h-5 text-yellow-500 dark:text-yellow-400" />;
+                              } else {
+                                return <Circle className="w-5 h-5 text-muted-foreground hover:text-foreground transition-colors" />;
+                              }
+                            })()}
+                          </button>
+                          <div className="flex-1 min-w-0">
+                            <span className={`block ${
+                              status === 'completed' ? 'line-through opacity-60' : 'text-foreground'
+                            }`}>
+                              {milestone.name}
+                            </span>
+                            {milestone.dueDate && (
+                              <span className="text-xs text-muted-foreground mt-1 block">
+                                Due: {new Date(milestone.dueDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
+                              </span>
+                            )}
+                          </div>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-8 w-8 text-muted-foreground hover:text-destructive"
+                            onClick={() => handleRemoveMilestone(originalIndex)}
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </Button>
+                        </div>
+                      );
+                    });
+                  })()}
                 </div>
               )}
             </div>

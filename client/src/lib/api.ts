@@ -468,14 +468,14 @@ export const skillsAPI = {
     return apiRequest<any[]>(`/skills/${skillId}/milestones`);
   },
 
-  addMilestone: async (skillId: string, data: { name: string; completed?: boolean; order?: number }) => {
+  addMilestone: async (skillId: string, data: { name: string; completed?: boolean; status?: string; dueDate?: string; order?: number }) => {
     return apiRequest<any>(`/skills/${skillId}/milestones`, {
       method: 'POST',
       body: JSON.stringify(data),
     });
   },
 
-  updateMilestone: async (milestoneId: string, data: { name?: string; completed?: boolean; order?: number }) => {
+  updateMilestone: async (milestoneId: string, data: { name?: string; completed?: boolean; status?: string; dueDate?: string; order?: number }) => {
     return apiRequest<any>(`/skills/milestones/${milestoneId}`, {
       method: 'PUT',
       body: JSON.stringify(data),

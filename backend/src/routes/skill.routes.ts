@@ -113,6 +113,8 @@ router.post('/', async (req: AuthRequest, res) => {
               userId: req.userId!,
               name: milestone.name,
               completed: milestone.completed || false,
+              status: milestone.status || (milestone.completed ? 'completed' : 'pending'),
+              dueDate: milestone.dueDate ? new Date(milestone.dueDate) : null,
               order: index
             }
           })
@@ -230,7 +232,10 @@ router.get('/:id/stats', async (req: AuthRequest, res) => {
     }
 
     const totalMilestones = skill.milestones.length;
-    const completedMilestones = skill.milestones.filter(m => m.completed).length;
+    // Count completed milestones using status field (fallback to completed boolean for backward compatibility)
+    const completedMilestones = skill.milestones.filter(m => 
+      m.status === 'completed' || (m.status === null && m.completed)
+    ).length;
     const progress = totalMilestones > 0 ? (completedMilestones / totalMilestones) * 100 : 0;
 
     res.json({
@@ -276,19 +281,24 @@ router.get('/:skillId/milestones', async (req: AuthRequest, res) => {
 router.post('/:skillId/milestones', async (req: AuthRequest, res) => {
   try {
     const { skillId } = req.params;
-    const { name, completed, order } = req.body;
+    const { name, completed, status, dueDate, order } = req.body;
 
     const skill = await prisma.skill.findUnique({ where: { id: skillId } });
     if (!skill || skill.userId !== req.userId) {
       return res.status(404).json({ error: 'Skill not found' });
     }
 
+    // Use status if provided, otherwise derive from completed boolean for backward compatibility
+    const milestoneStatus = status || (completed ? 'completed' : 'pending');
+
     const milestone = await prisma.milestone.create({
       data: {
         skillId,
         userId: req.userId!,
         name,
-        completed: completed || false,
+        completed: completed || false, // Keep for backward compatibility
+        status: milestoneStatus,
+        dueDate: dueDate ? new Date(dueDate) : null,
         order: order || 0
       }
     });
@@ -313,11 +323,27 @@ router.put('/milestones/:id', async (req: AuthRequest, res) => {
       return res.status(404).json({ error: 'Milestone not found' });
     }
 
-    const { name, completed, order } = req.body;
+    const { name, completed, status, dueDate, order } = req.body;
+
+    // Build update data
+    const updateData: any = { name, order };
+    
+    // Handle status - if status is provided, use it; otherwise derive from completed
+    if (status !== undefined) {
+      updateData.status = status;
+      updateData.completed = status === 'completed'; // Keep completed in sync
+    } else if (completed !== undefined) {
+      updateData.completed = completed;
+      updateData.status = completed ? 'completed' : 'pending'; // Derive status from completed
+    }
+    
+    if (dueDate !== undefined) {
+      updateData.dueDate = dueDate ? new Date(dueDate) : null;
+    }
 
     const milestone = await prisma.milestone.update({
       where: { id },
-      data: { name, completed, order }
+      data: updateData
     });
 
     // Recalculate skill progress
@@ -330,7 +356,7 @@ router.put('/milestones/:id', async (req: AuthRequest, res) => {
   }
 });
 
-// Toggle milestone completion
+// Toggle milestone status (cycles: pending → in-progress → completed → pending)
 router.patch('/milestones/:id/toggle', async (req: AuthRequest, res) => {
   try {
     const { id } = req.params;
@@ -340,9 +366,25 @@ router.patch('/milestones/:id/toggle', async (req: AuthRequest, res) => {
       return res.status(404).json({ error: 'Milestone not found' });
     }
 
+    // Get current status (use status field if available, otherwise derive from completed)
+    const currentStatus = existing.status || (existing.completed ? 'completed' : 'pending');
+    
+    // Cycle through: pending → in-progress → completed → pending
+    let nextStatus: string;
+    if (currentStatus === 'pending') {
+      nextStatus = 'in-progress';
+    } else if (currentStatus === 'in-progress') {
+      nextStatus = 'completed';
+    } else {
+      nextStatus = 'pending'; // completed → pending
+    }
+
     const milestone = await prisma.milestone.update({
       where: { id },
-      data: { completed: !existing.completed }
+      data: { 
+        status: nextStatus,
+        completed: nextStatus === 'completed' // Keep completed in sync
+      }
     });
 
     // Recalculate skill progress
@@ -666,6 +708,8 @@ router.post('/ai-generate', async (req: AuthRequest, res) => {
               userId: req.userId!,
               name: milestone.name,
               completed: milestone.completed || false,
+              status: milestone.status || (milestone.completed ? 'completed' : 'pending'),
+              dueDate: milestone.dueDate ? new Date(milestone.dueDate) : null,
               order: index
             }
           })
@@ -827,7 +871,10 @@ router.post('/generate/roadmap', async (req: AuthRequest, res) => {
 async function updateSkillProgress(skillId: string) {
   const milestones = await prisma.milestone.findMany({ where: { skillId } });
   const totalMilestones = milestones.length;
-  const completedMilestones = milestones.filter(m => m.completed).length;
+  // Count completed milestones using status field (fallback to completed boolean for backward compatibility)
+  const completedMilestones = milestones.filter(m => 
+    m.status === 'completed' || (m.status === null && m.completed)
+  ).length;
   const progress = totalMilestones > 0 ? (completedMilestones / totalMilestones) * 100 : 0;
 
   await prisma.skill.update({
