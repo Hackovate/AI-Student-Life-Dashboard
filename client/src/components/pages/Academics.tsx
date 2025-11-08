@@ -3,19 +3,24 @@ import { Card } from '../ui/card';
 import { Button } from '../ui/button';
 import { Badge } from '../ui/badge';
 import { useEffect, useState } from 'react';
-import { coursesAPI } from '@/lib/api';
+import { coursesAPI, authAPI } from '@/lib/api';
+import { useAuth } from '@/lib/useAuth';
 import { CourseModal } from '../modals/CourseModal';
+import { SubjectModal } from '../modals/SubjectModal';
 import { ExamModal } from '../modals/ExamModal';
-import { AssignmentModal } from '../modals/AssignmentModal';
+import { AssignmentDialog } from '../modals/AssignmentDialog';
 import { ScheduleModal } from '../modals/ScheduleModal';
 import { AttendanceModal } from '../modals/AttendanceModal';
 
 export function Academics() {
+  const { user: authUser } = useAuth();
+  const [user, setUser] = useState<any>(null);
   const [subjects, setSubjects] = useState<any[]>([]);
   const [upcomingExams, setUpcomingExams] = useState<any[]>([]);
 
   // Modal States
   const [courseModalOpen, setCourseModalOpen] = useState(false);
+  const [subjectModalOpen, setSubjectModalOpen] = useState(false);
   const [examModalOpen, setExamModalOpen] = useState(false);
   const [assignmentModalOpen, setAssignmentModalOpen] = useState(false);
   const [scheduleModalOpen, setScheduleModalOpen] = useState(false);
@@ -24,6 +29,7 @@ export function Academics() {
   // Edit/Create Mode
   const [modalMode, setModalMode] = useState<'create' | 'edit'>('create');
   const [selectedCourse, setSelectedCourse] = useState<any>(null);
+  const [selectedSubject, setSelectedSubject] = useState<any>(null);
   const [selectedExam, setSelectedExam] = useState<any>(null);
   const [selectedAssignment, setSelectedAssignment] = useState<any>(null);
   const [selectedSchedule, setSelectedSchedule] = useState<any>(null);
@@ -31,7 +37,41 @@ export function Academics() {
 
   useEffect(() => {
     loadData();
+    loadUserProfile();
   }, []);
+
+  useEffect(() => {
+    // Update user state when authUser changes
+    if (authUser) {
+      setUser(authUser);
+    }
+  }, [authUser]);
+
+  // Listen for assignment events from AI chat to refresh data
+  useEffect(() => {
+    const handleAssignmentCreated = () => {
+      loadData();
+    };
+
+    window.addEventListener('assignmentCreated', handleAssignmentCreated);
+
+    return () => {
+      window.removeEventListener('assignmentCreated', handleAssignmentCreated);
+    };
+  }, []);
+
+  const loadUserProfile = async () => {
+    try {
+      if (authUser && authUser.educationLevel) {
+        setUser(authUser);
+      } else {
+        const response = await authAPI.getProfile();
+        setUser(response.user);
+      }
+    } catch (err) {
+      console.error('Failed to load user profile', err);
+    }
+  };
 
   const toggleCourseExpanded = (courseId: string) => {
     setExpandedCourses((prev) =>
@@ -48,6 +88,7 @@ export function Academics() {
         id: c.id,
         name: c.courseName,
         code: c.courseCode || '',
+        description: c.description || '',
         progress: c.progress ?? 0,
         grade: c.grade ?? '',
         color: ['from-blue-500 to-cyan-500','from-violet-500 to-purple-500','from-green-500 to-emerald-500','from-orange-500 to-red-500'][idx % 4],
@@ -73,17 +114,39 @@ export function Academics() {
     }
   };
 
-  // Course Handlers
+  // Course/Subject Handlers
   const handleAddCourse = () => {
     setModalMode('create');
     setSelectedCourse(null);
-    setCourseModalOpen(true);
+    setSelectedSubject(null);
+    
+    // Check education level to determine which modal to open
+    // Use user state if available, otherwise fallback to authUser
+    const currentUser = user || authUser;
+    const educationLevel = currentUser?.educationLevel;
+    
+    if (educationLevel === 'school' || educationLevel === 'college') {
+      setSubjectModalOpen(true);
+    } else {
+      setCourseModalOpen(true);
+    }
   };
 
   const handleEditCourse = (course: any) => {
     setModalMode('edit');
-    setSelectedCourse(course);
-    setCourseModalOpen(true);
+    const currentUser = user || authUser;
+    const educationLevel = currentUser?.educationLevel;
+    if (educationLevel === 'school' || educationLevel === 'college') {
+      // Pass the course object without description (group comes from user profile)
+      setSelectedSubject({
+        ...course,
+        courseName: course.name || course.courseName,
+      });
+      setSubjectModalOpen(true);
+    } else {
+      setSelectedCourse(course);
+      setCourseModalOpen(true);
+    }
   };
 
   const handleSaveCourse = async (data: any) => {
@@ -98,6 +161,30 @@ export function Academics() {
       console.error('Save course failed', err);
       alert('Failed to save course');
     }
+  };
+
+  const handleSaveSubject = async (data: any) => {
+    try {
+      if (modalMode === 'create') {
+        await coursesAPI.create(data);
+      } else {
+        await coursesAPI.update(selectedSubject.id, data);
+      }
+      await loadData();
+    } catch (err) {
+      console.error('Save subject failed', err);
+      alert('Failed to save subject');
+    }
+  };
+
+  // Get button text based on education level
+  const getAddButtonText = () => {
+    const currentUser = user || authUser;
+    const educationLevel = currentUser?.educationLevel;
+    if (educationLevel === 'school' || educationLevel === 'college') {
+      return 'Add Subject';
+    }
+    return 'Add Course';
   };
 
   const handleDeleteCourse = async (id: string) => {
@@ -153,25 +240,25 @@ export function Academics() {
 
   // Assignment Handlers
   const handleAddAssignment = (courseId: string) => {
-    setModalMode('create');
-    setSelectedAssignment(null);
     setSelectedCourse(subjects.find(s => s.id === courseId) || null);
+    setSelectedAssignment(null);
+    setModalMode('create');
     setAssignmentModalOpen(true);
   };
 
-  const handleEditAssignment = (assignment: any, courseId: string) => {
-    setModalMode('edit');
+  const handleEditAssignment = (assignment: any) => {
     setSelectedAssignment(assignment);
-    setSelectedCourse(subjects.find(s => s.id === courseId) || null);
-    setAssignmentModalOpen(true);
+    setModalMode('edit');
   };
 
   const handleSaveAssignment = async (data: any) => {
     try {
-      if (modalMode === 'create') {
-        await coursesAPI.createAssignment(selectedCourse.id, data);
-      } else {
+      if (modalMode === 'edit' && selectedAssignment) {
         await coursesAPI.updateAssignment(selectedAssignment.id, data);
+        setSelectedAssignment(null);
+        setModalMode('create');
+      } else if (selectedCourse) {
+        await coursesAPI.createAssignment(selectedCourse.id, data);
       }
       await loadData();
     } catch (err) {
@@ -181,7 +268,6 @@ export function Academics() {
   };
 
   const handleDeleteAssignment = async (assignmentId: string) => {
-    if (!confirm('Delete this assignment?')) return;
     try {
       await coursesAPI.deleteAssignment(assignmentId);
       await loadData();
@@ -244,6 +330,25 @@ export function Academics() {
         course={selectedCourse}
         mode={modalMode}
       />
+      {(() => {
+        const currentUser = user || authUser;
+        const educationLevel = currentUser?.educationLevel;
+        if (educationLevel === 'school' || educationLevel === 'college') {
+          return (
+            <SubjectModal
+              open={subjectModalOpen}
+              onClose={() => setSubjectModalOpen(false)}
+              onSave={handleSaveSubject}
+              subject={selectedSubject}
+              mode={modalMode}
+              educationLevel={educationLevel === 'school' ? 'school' : 'college'}
+              class={currentUser?.class}
+              year={currentUser?.year}
+            />
+          );
+        }
+        return null;
+      })()}
       <ExamModal
         open={examModalOpen}
         onClose={() => setExamModalOpen(false)}
@@ -253,15 +358,24 @@ export function Academics() {
         courses={subjects}
         selectedCourseId={selectedCourse?.id}
       />
-      <AssignmentModal
-        open={assignmentModalOpen}
-        onClose={() => setAssignmentModalOpen(false)}
-        onSave={handleSaveAssignment}
-        assignment={selectedAssignment}
-        mode={modalMode}
-        courseId={selectedCourse?.id || ''}
-        courseName={selectedCourse?.name || ''}
-      />
+      {selectedCourse && (
+        <AssignmentDialog
+          open={assignmentModalOpen}
+          onClose={() => {
+            setAssignmentModalOpen(false);
+            setSelectedCourse(null);
+            setSelectedAssignment(null);
+            setModalMode('create');
+          }}
+          onSave={handleSaveAssignment}
+          onEdit={handleEditAssignment}
+          onDelete={handleDeleteAssignment}
+          assignments={selectedCourse.assignmentsList || []}
+          courseId={selectedCourse.id}
+          courseName={selectedCourse.name}
+          editingAssignment={selectedAssignment}
+        />
+      )}
       <ScheduleModal
         open={scheduleModalOpen}
         onClose={() => setScheduleModalOpen(false)}
@@ -292,7 +406,7 @@ export function Academics() {
           </Button>
           <Button onClick={handleAddCourse} className="bg-primary hover:bg-primary/90 text-primary-foreground gap-2 h-9">
             <Plus className="w-4 h-4" />
-            Add Course
+            {getAddButtonText()}
           </Button>
         </div>
       </div>
@@ -314,7 +428,26 @@ export function Academics() {
                     <div className="min-w-0">
                       <h3 className="text-sm font-semibold text-foreground truncate">{subject.name}</h3>
                       <p className="text-xs text-muted-foreground mt-0.5 truncate">
-                        {subject.code || 'No course code'}
+                        {(() => {
+                          const currentUser = user || authUser;
+                          const educationLevel = currentUser?.educationLevel;
+                          // For school/college, show user's group from profile
+                          if (educationLevel === 'school' || educationLevel === 'college') {
+                            const userGroup = currentUser?.group;
+                            if (userGroup) {
+                              // Map group value to display format
+                              const groupMap: { [key: string]: string } = {
+                                'science': 'Science (বিজ্ঞান)',
+                                'commerce': 'Commerce (ব্যবসায় শিক্ষা)',
+                                'arts': 'Arts (মানবিক)'
+                              };
+                              return groupMap[userGroup.toLowerCase()] || userGroup;
+                            }
+                            return 'No group';
+                          }
+                          // For university/graduate, show course code
+                          return subject.code || 'No course code';
+                        })()}
                       </p>
                     </div>
                     <div className="flex items-center gap-2 shrink-0">
@@ -496,7 +629,11 @@ export function Academics() {
                                     variant="ghost"
                                     size="icon"
                                     className="h-7 w-7"
-                                    onClick={() => handleEditAssignment(assignment, subject.id)}
+                                    onClick={() => {
+                                      setSelectedCourse(subject);
+                                      setAssignmentModalOpen(true);
+                                      handleEditAssignment(assignment);
+                                    }}
                                     aria-label="Edit assignment"
                                   >
                                     <Pencil className="w-3 h-3" />

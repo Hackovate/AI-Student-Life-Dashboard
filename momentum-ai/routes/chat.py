@@ -2,12 +2,21 @@
 import json
 import re
 import traceback
+import uuid
 from datetime import datetime
 from fastapi import APIRouter, HTTPException
 from models import ChatRequest, ChatResponse, ChatAction
 from database import collection
 from ai_client import call_gemini_generate, gemini_embedding
 from utils import retrieve_user_context, determine_optimal_k, determine_context_types, summarize_long_context
+from langchain.text_splitter import RecursiveCharacterTextSplitter
+
+# Text splitter for long conversations (smaller chunks for chat context)
+conversation_splitter = RecursiveCharacterTextSplitter(
+    chunk_size=500,  # Smaller chunks for conversations
+    chunk_overlap=50,  # Small overlap for context
+    length_function=len
+)
 
 router = APIRouter()
 
@@ -98,7 +107,7 @@ Actions:
 
 ACTIONS (include in Actions: JSON array):
 - update_user: {{"type":"update_user","data":{{"firstName":"..."}}}}
-- add_course: {{"type":"add_course","data":{{"name":"...","code":"...","credits":3}}}}
+- add_course: {{"type":"add_course","data":{{"name":"..." OR "courseName":"...","code":"..." OR "courseCode":"..." (optional),"description":"..." (optional),"group":"science|commerce|arts" (for school/college),"credits":N (optional, default 3 for university),"semester":"1"|"2"|"3"|"4"|"5"|"6"|"7"|"8" (optional, for university),"year":1|2|3|4 (optional, for university),"status":"ongoing|completed|dropped" (optional, default "ongoing"),"progress":0-100 (optional, default 0),"attendance":0-100 (optional, default 0)}}}}
 - add_skill: {{"type":"add_skill","data":{{"name":"...","category":"Technical|Creative|Soft Skills|Business|Language|Other","level":"beginner|intermediate|advanced|expert","description":"...","goalStatement":"...","durationMonths":N,"estimatedHours":N,"startDate":"YYYY-MM-DD","endDate":"YYYY-MM-DD","milestones":[{{"name":"...","order":0}}],"resources":[{{"title":"...","type":"link|video|note","url":"...","description":"..."}}]}}}}
 - add_expense: {{"type":"add_expense","data":{{"amount":N,"category":"Food|Transport|Entertainment|Shopping|Bills|Education|Health|Other","description":"...","date":"YYYY-MM-DD","paymentMethod":"cash|card|digital|bank_transfer","recurring":false,"frequency":"weekly|monthly|yearly"}}}}
 - update_expense: {{"type":"update_expense","data":{{"finance_id":"..." OR "description":"..." (find by description if ID not provided),"amount":N,"category":"Food|Transport|Entertainment|Shopping|Bills|Education|Health|Other","description":"...","date":"YYYY-MM-DD"}}}}
@@ -117,6 +126,15 @@ ACTIONS (include in Actions: JSON array):
 - update_habit: {{"type":"update_habit","data":{{"habit_id":"...","name":"...","target":"...","time":"HH:MM","color":"...","icon":"..."}}}}
 - delete_habit: {{"type":"delete_habit","data":{{"habit_id":"..."}}}}
 - toggle_habit: {{"type":"toggle_habit","data":{{"habit_id":"..."}}}}
+- add_schedule: {{"type":"add_schedule","data":{{"courseId":"..." OR "courseName":"...","day":"Mon|Tue|Wed|Thu|Fri|Sat|Sun","time":"HH:MM" (e.g., "09:00"),"type":"Lecture|Lab|Tutorial" (optional),"location":"..." (optional)}}}}
+- update_schedule: {{"type":"update_schedule","data":{{"schedule_id":"...","day":"Mon|Tue|Wed|Thu|Fri|Sat|Sun","time":"HH:MM","type":"Lecture|Lab|Tutorial","location":"..."}}}}
+- delete_schedule: {{"type":"delete_schedule","data":{{"schedule_id":"..."}}}}
+- mark_attendance: {{"type":"mark_attendance","data":{{"courseId":"..." OR "courseName":"...","classScheduleId":"..." OR "day":"Mon|Tue|Wed|Thu|Fri|Sat|Sun" AND "time":"HH:MM","status":"present|absent|late","date":"YYYY-MM-DD" (optional, default today),"notes":"..." (optional)}}}}
+- update_attendance: {{"type":"update_attendance","data":{{"attendance_id":"...","status":"present|absent|late","notes":"..." (optional)}}}}
+- delete_attendance: {{"type":"delete_attendance","data":{{"attendance_id":"..."}}}}
+- add_assignment: {{"type":"add_assignment","data":{{"courseId":"..." OR "courseName":"...","title":"...","description":"..." (optional),"dueDate":"YYYY-MM-DD" (optional),"startDate":"YYYY-MM-DD" (optional),"estimatedHours":N (optional),"status":"pending|in_progress|completed" (optional, default "pending"),"points":N (optional)}}}}
+- update_assignment: {{"type":"update_assignment","data":{{"assignment_id":"...","title":"...","description":"...","dueDate":"YYYY-MM-DD","startDate":"YYYY-MM-DD","estimatedHours":N,"status":"pending|in_progress|completed","points":N}}}}
+- delete_assignment: {{"type":"delete_assignment","data":{{"assignment_id":"..."}}}}
 
 SKILL CREATION RULES:
 - "I know X" → Simple: Create immediately with name, category, level only
@@ -146,10 +164,65 @@ SKILL CREATION RULES:
   If user provides partial info → Ask for missing pieces, DO NOT create yet.
   Only create when user says "that's all", "create it", or provides complete info.
 
+COURSE CREATION RULES:
+- CRITICAL: Check user's education level from structured context to determine required fields
+- Education level is shown in context as "Education: school|college|university, Class: X, Year: X, Group: X"
+
+- For SCHOOL/COLLEGE users (education level is "school" or "college"):
+  * Required: Subject name (courseName/name)
+  * Required: Group (science/commerce/arts) - Check if user is in class 9-10 (school) or any college year
+    - If user is in class 9-10 (school) or college → Group is REQUIRED
+    - If user is in class 6-8 (school) → Group is NOT required
+  * DO NOT ask for: course code, credits, semester, year (these are not used for school/college)
+  * Example: "I want to add Physics" → Ask: "Which group is Physics in? (Science, Commerce, or Arts)"
+  * When creating: Set courseCode to null, credits to null, description to group value
+
+- For UNIVERSITY users (education level is "university"):
+  * Required: Course name (courseName/name)
+  * Optional but recommended: Course code (code/courseCode), credits (default 3), semester (1-8), year (1-4)
+  * Optional: Status (ongoing/completed/dropped, default "ongoing"), description, progress (0-100, default 0), attendance (0-100, default 0)
+  * Example: "I want to add Data Structures" → Ask: "What's the course code? How many credits? Which semester and year?"
+  * Ask for ALL missing info in ONE message: "I need a few details: What's the course code? How many credits? Which semester (1-8) and year (1-4)? What's the status (ongoing/completed/dropped)?"
+  * Only create when user provides complete info or explicitly says "create it" / "that's all"
+
+- IMPORTANT: Ask for ALL missing information in ONE message, then create when complete
+- DO NOT create course with partial information - wait for user to provide all required fields
+- If user provides partial info → Ask for remaining fields in one message
+- Only create when user says "that's all", "create it", "add it", or provides all required information
+
+COURSE MANAGEMENT RULES:
+- When user mentions a course/subject, identify it by name from "Courses/Subjects" in context
+- Course names are shown in context - use partial matching if needed (e.g., "Physics" matches "Physics 1st Paper")
+- For schedule operations:
+  * Required: courseName (or courseId), day (Mon/Tue/Wed/Thu/Fri/Sat/Sun), time (HH:MM format)
+  * Optional: type (Lecture/Lab/Tutorial), location
+  * Ask for missing info in one message: "I need: Which day? What time? Type (Lecture/Lab/Tutorial)? Location?"
+  * Example: "Add schedule for Physics" → Ask: "Which day? What time? What type (Lecture/Lab/Tutorial)? Any location?"
+- For attendance operations:
+  * Required: courseName (or courseId), classScheduleId (or identify by day/time), status (present/absent/late)
+  * Optional: date (default today), notes
+  * If classScheduleId not provided, identify schedule from course's schedule list by day/time
+  * Example: "Mark me present for Physics Monday class" → Find Monday schedule for Physics, mark present
+- For assignment operations:
+  * Required: courseName (or courseId), title
+  * Optional: description, dueDate, startDate, estimatedHours, status (pending/in_progress/completed), points
+  * Ask for missing info: "I need: What's the title? When is it due? Any description? Estimated hours?"
+  * Example: "Add assignment for Data Structures" → Ask: "What's the assignment title? When is it due? Any description?"
+- For performance queries (e.g., "How's my performance in X?", "Tell me about X course", "When was I last present in X?", "How many times was I absent this month?"):
+  * DO NOT create actions
+  * Analyze course data from context (attendance %, progress %, assignments, exams, schedules, attendance records)
+  * Use "Recent Attendance" and "Attendance Stats" from context to answer detailed attendance questions
+  * For questions like "When was I last present?", check Recent Attendance records and find the most recent "present" or "late" status
+  * For questions like "How many absences this month?", count "absent" statuses from Recent Attendance records within the current month
+  * Return insights as natural language response
+  * Provide specific metrics and recommendations
+  * Example: "Your attendance in Physics is 85%. You have 2 pending assignments. Progress is at 60%. Recent attendance: Dec 15: present, Dec 12: absent, Dec 10: present."
+
 DUPLICATE PREVENTION:
 - Check "Current Skills" in context - if skill name already exists, use update_skill action instead of add_skill
-- NEVER create duplicate skills with the same name
-- If user mentions learning a skill that exists → Update the existing skill with new information
+- Check "Courses/Subjects" in context - if course/subject name already exists, inform user and ask if they want to update it
+- NEVER create duplicate courses/subjects with the same name
+- If user mentions adding a course/subject that exists → Ask if they want to update it instead
 
 FINANCE RULES:
 - For expenses: Extract amount, category, description, date from user message
@@ -342,27 +415,61 @@ Assistant:"""
         
         # Store conversation in ChromaDB for future context
         conversation_text = f"User: {req.message}\nAssistant: {response_text}"
-        doc_id = f"chat_{req.user_id}_{datetime.now().isoformat()}"
+        base_doc_id = f"chat_{req.user_id}_{datetime.now().isoformat()}"
         
         try:
-            # Generate embedding for the conversation
-            emb = gemini_embedding([conversation_text])[0]
-            collection.add(
-                documents=[conversation_text],
-                ids=[doc_id],
-                embeddings=[emb],
-                metadatas=[{
-                    "user_id": req.user_id,
-                    "type": "chat",
-                    "timestamp": datetime.now().isoformat()
-                }]
-            )
+            # For long conversations, chunk them for better retrieval
+            # Short conversations (<500 chars) stored as single document
+            if len(conversation_text) > 500:
+                # Split long conversation into chunks
+                chunks = conversation_splitter.split_text(conversation_text)
+                
+                # Generate embeddings for all chunks at once (more efficient)
+                embeddings = gemini_embedding(chunks)
+                
+                # Prepare metadata and IDs for all chunks
+                chunk_ids = []
+                chunk_metadatas = []
+                
+                for i, chunk in enumerate(chunks):
+                    chunk_id = f"{base_doc_id}_chunk_{i}"
+                    chunk_ids.append(chunk_id)
+                    chunk_metadatas.append({
+                        "user_id": req.user_id,
+                        "type": "chat",
+                        "timestamp": datetime.now().isoformat(),
+                        "chunk_index": i,
+                        "total_chunks": len(chunks),
+                        "source_doc_id": base_doc_id,
+                        "is_chunk": True
+                    })
+                
+                # Batch add chunks to ChromaDB
+                collection.add(
+                    documents=chunks,
+                    ids=chunk_ids,
+                    embeddings=embeddings,
+                    metadatas=chunk_metadatas
+                )
+            else:
+                # Short conversation - store as single document
+                emb = gemini_embedding([conversation_text])[0]
+                collection.add(
+                    documents=[conversation_text],
+                    ids=[base_doc_id],
+                    embeddings=[emb],
+                    metadatas=[{
+                        "user_id": req.user_id,
+                        "type": "chat",
+                        "timestamp": datetime.now().isoformat()
+                    }]
+                )
         except Exception as e:
             print(f"Error storing chat conversation: {e}")
         
         return ChatResponse(
             response=response_text,
-            conversation_id=doc_id,
+            conversation_id=base_doc_id,
             actions=actions
         )
         

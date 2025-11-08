@@ -25,6 +25,9 @@ export const chat = async (req: Request, res: Response) => {
         educationLevel: true,
         institution: true,
         major: true,
+        class: true,
+        year: true,
+        group: true,
         unstructuredContext: true
       }
     });
@@ -48,8 +51,22 @@ export const chat = async (req: Request, res: Response) => {
     try {
       courses = await prisma.course.findMany({
         where: { userId },
-        select: { courseName: true },
-        take: 5
+        include: {
+          classSchedule: true,
+          assignments: {
+            orderBy: { dueDate: 'asc' },
+            take: 10
+          },
+          exams: {
+            orderBy: { date: 'asc' },
+            take: 10
+          },
+          attendanceRecords: {
+            orderBy: { date: 'desc' },
+            take: 20
+          }
+        },
+        take: 20
       });
 
       skills = await prisma.skill.findMany({
@@ -154,11 +171,66 @@ export const chat = async (req: Request, res: Response) => {
 
     // Build structured context summary
     const structuredContextParts: string[] = [];
-    if (user?.educationLevel) structuredContextParts.push(`Education: ${user.educationLevel}`);
+    if (user?.educationLevel) {
+      let educationInfo = `Education: ${user.educationLevel}`;
+      if (user.educationLevel === 'school' && user.class) {
+        educationInfo += `, Class: ${user.class}`;
+      }
+      if ((user.educationLevel === 'college' || user.educationLevel === 'university') && user.year) {
+        educationInfo += `, Year: ${user.year}`;
+      }
+      if ((user.educationLevel === 'school' || user.educationLevel === 'college') && user.group) {
+        educationInfo += `, Group: ${user.group}`;
+      }
+      structuredContextParts.push(educationInfo);
+    }
     if (user?.institution) structuredContextParts.push(`Institution: ${user.institution}`);
     if (user?.major) structuredContextParts.push(`Major: ${user.major}`);
     if (courses.length > 0) {
-      structuredContextParts.push(`Courses: ${courses.map(c => c.courseName).join(', ')}`);
+      const coursesList = courses.map(c => {
+        const courseInfo = [`${c.courseName}${c.courseCode ? ` (${c.courseCode})` : ''}`];
+        if (c.attendance !== null) courseInfo.push(`Attendance: ${c.attendance.toFixed(1)}%`);
+        if (c.progress !== null) courseInfo.push(`Progress: ${c.progress}%`);
+        if (c.status) courseInfo.push(`Status: ${c.status}`);
+        if (c.classSchedule.length > 0) {
+          const schedules = c.classSchedule.map((s: any) => `${s.day} ${s.time}${s.type ? ` (${s.type})` : ''}`).join(', ');
+          courseInfo.push(`Schedule: ${schedules}`);
+        }
+        if (c.assignments.length > 0) {
+          const pendingAssignments = c.assignments.filter((a: any) => a.status === 'pending' || a.status === 'in_progress');
+          if (pendingAssignments.length > 0) {
+            courseInfo.push(`Pending Assignments: ${pendingAssignments.map((a: any) => a.title).join(', ')}`);
+          }
+        }
+        if (c.exams.length > 0) {
+          const upcomingExams = c.exams.filter((e: any) => new Date(e.date) >= new Date());
+          if (upcomingExams.length > 0) {
+            courseInfo.push(`Upcoming Exams: ${upcomingExams.map((e: any) => e.title || 'Exam').join(', ')}`);
+          }
+        }
+        // Add attendance records and statistics
+        if (c.attendanceRecords && c.attendanceRecords.length > 0) {
+          const records = c.attendanceRecords;
+          const totalClasses = records.length;
+          const presentCount = records.filter((r: any) => r.status === 'present').length;
+          const absentCount = records.filter((r: any) => r.status === 'absent').length;
+          const lateCount = records.filter((r: any) => r.status === 'late').length;
+          
+          // Add attendance statistics
+          courseInfo.push(`Attendance Stats: Total ${totalClasses} classes, Present ${presentCount}, Absent ${absentCount}, Late ${lateCount}`);
+          
+          // Add recent attendance records (last 10 with dates and status)
+          const recentRecords = records.slice(0, 10).map((r: any) => {
+            const date = new Date(r.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+            return `${date}: ${r.status}`;
+          }).join(', ');
+          if (recentRecords) {
+            courseInfo.push(`Recent Attendance: ${recentRecords}`);
+          }
+        }
+        return courseInfo.join(' | ');
+      }).join('\n');
+      structuredContextParts.push(`Courses/Subjects:\n${coursesList}`);
     }
     if (skills.length > 0) {
       const skillsList = skills.map(s => `${s.name} (${s.category || 'General'}, ${s.level || 'beginner'})`).join(', ');
@@ -243,6 +315,7 @@ export const chat = async (req: Request, res: Response) => {
 
     // Forward to AI service with structured context
     // The AI service will also retrieve additional context from ChromaDB
+    // Use '\n\n' for better separation and readability instead of '; '
     let aiResp;
     try {
       aiResp = await chatAI({
@@ -250,7 +323,7 @@ export const chat = async (req: Request, res: Response) => {
         user_name: userName,
         message,
         conversation_history: conversation_history || [],
-        structured_context: structuredContextParts.join('; ') // Pass as string for now
+        structured_context: structuredContextParts.join('\n\n') // Better formatting with line breaks
       });
     } catch (aiError: any) {
       console.error('Error calling AI service:', aiError);
@@ -279,15 +352,270 @@ export const chat = async (req: Request, res: Response) => {
             console.log('User data updated via AI:', action.data);
             actionResults.push({ type: action.type, success: true });
           } else if (action.type === 'add_course') {
-            await prisma.course.create({
+            // Determine if this is a school/college subject or university course
+            const isSchoolOrCollege = user?.educationLevel === 'school' || user?.educationLevel === 'college';
+            
+            if (isSchoolOrCollege) {
+              // For school/college: subject name and group (stored in description)
+              await prisma.course.create({
+                data: {
+                  userId,
+                  courseName: action.data.name || action.data.courseName,
+                  courseCode: null,
+                  description: action.data.group || action.data.description || 'Subject',
+                  credits: null,
+                  semester: null,
+                  year: null,
+                  status: 'ongoing',
+                  progress: 0,
+                  attendance: 0,
+                }
+              });
+            } else {
+              // For university: full course details
+              await prisma.course.create({
+                data: {
+                  userId,
+                  courseName: action.data.name || action.data.courseName,
+                  courseCode: action.data.code || action.data.courseCode || null,
+                  description: action.data.description || null,
+                  credits: action.data.credits ? parseInt(action.data.credits.toString()) : (action.data.credits === 0 ? 0 : 3),
+                  semester: action.data.semester ? action.data.semester.toString() : null,
+                  year: action.data.year ? parseInt(action.data.year.toString()) : null,
+                  status: action.data.status || 'ongoing',
+                  progress: action.data.progress !== undefined ? parseInt(action.data.progress.toString()) : 0,
+                  attendance: action.data.attendance !== undefined ? parseFloat(action.data.attendance.toString()) : 0,
+                }
+              });
+            }
+            console.log('Course added via AI:', action.data);
+            actionResults.push({ type: action.type, success: true });
+          } else if (action.type === 'add_schedule') {
+            // Find course by name or ID
+            let course;
+            if (action.data.courseId) {
+              course = await prisma.course.findFirst({
+                where: { id: action.data.courseId, userId }
+              });
+            } else if (action.data.courseName) {
+              course = await prisma.course.findFirst({
+                where: { 
+                  courseName: { contains: action.data.courseName, mode: 'insensitive' },
+                  userId 
+                }
+              });
+            }
+            if (!course) {
+              throw new Error(`Course not found: ${action.data.courseName || action.data.courseId}`);
+            }
+            const schedule = await prisma.classSchedule.create({
               data: {
-                userId,
-                courseName: action.data.name || action.data.courseName,
-                courseCode: action.data.code || action.data.courseCode || null,
-                credits: action.data.credits || null
+                courseId: course.id,
+                day: action.data.day,
+                time: action.data.time,
+                type: action.data.type || null,
+                location: action.data.location || null,
               }
             });
-            console.log('Course added via AI:', action.data);
+            console.log('Schedule added via AI:', schedule);
+            actionResults.push({ type: action.type, success: true, data: schedule });
+          } else if (action.type === 'update_schedule') {
+            const existing = await prisma.classSchedule.findUnique({ where: { id: action.data.schedule_id } });
+            if (!existing) throw new Error('Schedule not found');
+            const course = await prisma.course.findUnique({ where: { id: existing.courseId } });
+            if (!course || course.userId !== userId) throw new Error('Not authorized');
+            const updated = await prisma.classSchedule.update({
+              where: { id: action.data.schedule_id },
+              data: {
+                day: action.data.day,
+                time: action.data.time,
+                type: action.data.type,
+                location: action.data.location,
+              }
+            });
+            console.log('Schedule updated via AI:', updated);
+            actionResults.push({ type: action.type, success: true, data: updated });
+          } else if (action.type === 'delete_schedule') {
+            const existing = await prisma.classSchedule.findUnique({ where: { id: action.data.schedule_id } });
+            if (!existing) throw new Error('Schedule not found');
+            const course = await prisma.course.findUnique({ where: { id: existing.courseId } });
+            if (!course || course.userId !== userId) throw new Error('Not authorized');
+            await prisma.classSchedule.delete({ where: { id: action.data.schedule_id } });
+            console.log('Schedule deleted via AI:', action.data.schedule_id);
+            actionResults.push({ type: action.type, success: true });
+          } else if (action.type === 'mark_attendance') {
+            // Find course by name or ID
+            let course;
+            if (action.data.courseId) {
+              course = await prisma.course.findFirst({
+                where: { id: action.data.courseId, userId },
+                include: { classSchedule: true }
+              });
+            } else if (action.data.courseName) {
+              course = await prisma.course.findFirst({
+                where: { 
+                  courseName: { contains: action.data.courseName, mode: 'insensitive' },
+                  userId 
+                },
+                include: { classSchedule: true }
+              });
+            }
+            if (!course) {
+              throw new Error(`Course not found: ${action.data.courseName || action.data.courseId}`);
+            }
+            // Find schedule by ID or by day/time
+            let scheduleId = action.data.classScheduleId;
+            if (!scheduleId && (action.data.day || action.data.time)) {
+              const schedule = course.classSchedule.find((s: any) => {
+                const dayMatch = !action.data.day || s.day.toLowerCase().includes(action.data.day.toLowerCase());
+                const timeMatch = !action.data.time || s.time === action.data.time;
+                return dayMatch && timeMatch;
+              });
+              if (schedule) {
+                scheduleId = schedule.id;
+              } else {
+                throw new Error(`Schedule not found for ${action.data.day || ''} ${action.data.time || ''}`);
+              }
+            }
+            if (!scheduleId) {
+              throw new Error('classScheduleId, day, or time is required');
+            }
+            const attendanceDate = action.data.date ? new Date(action.data.date) : new Date();
+            attendanceDate.setHours(0, 0, 0, 0);
+            const existing = await prisma.attendanceRecord.findFirst({
+              where: {
+                classScheduleId: scheduleId,
+                userId,
+                date: attendanceDate
+              }
+            });
+            let record;
+            if (existing) {
+              record = await prisma.attendanceRecord.update({
+                where: { id: existing.id },
+                data: { status: action.data.status, notes: action.data.notes || null }
+              });
+            } else {
+              record = await prisma.attendanceRecord.create({
+                data: {
+                  courseId: course.id,
+                  classScheduleId: scheduleId,
+                  userId,
+                  date: attendanceDate,
+                  status: action.data.status,
+                  notes: action.data.notes || null
+                }
+              });
+            }
+            // Recalculate attendance percentage
+            const allRecords = await prisma.attendanceRecord.findMany({
+              where: { courseId: course.id, userId }
+            });
+            const totalClasses = allRecords.length;
+            const presentClasses = allRecords.filter((r: any) => r.status === 'present' || r.status === 'late').length;
+            const attendancePercentage = totalClasses > 0 ? (presentClasses / totalClasses) * 100 : 0;
+            await prisma.course.update({
+              where: { id: course.id },
+              data: { attendance: attendancePercentage }
+            });
+            console.log('Attendance marked via AI:', record);
+            actionResults.push({ type: action.type, success: true, data: { record, attendancePercentage } });
+          } else if (action.type === 'update_attendance') {
+            const existing = await prisma.attendanceRecord.findUnique({ where: { id: action.data.attendance_id } });
+            if (!existing || existing.userId !== userId) throw new Error('Attendance record not found');
+            const record = await prisma.attendanceRecord.update({
+              where: { id: action.data.attendance_id },
+              data: { status: action.data.status, notes: action.data.notes || null }
+            });
+            // Recalculate attendance percentage
+            const allRecords = await prisma.attendanceRecord.findMany({
+              where: { courseId: record.courseId, userId }
+            });
+            const totalClasses = allRecords.length;
+            const presentClasses = allRecords.filter((r: any) => r.status === 'present' || r.status === 'late').length;
+            const attendancePercentage = totalClasses > 0 ? (presentClasses / totalClasses) * 100 : 0;
+            await prisma.course.update({
+              where: { id: record.courseId },
+              data: { attendance: attendancePercentage }
+            });
+            console.log('Attendance updated via AI:', record);
+            actionResults.push({ type: action.type, success: true, data: { record, attendancePercentage } });
+          } else if (action.type === 'delete_attendance') {
+            const existing = await prisma.attendanceRecord.findUnique({ where: { id: action.data.attendance_id } });
+            if (!existing || existing.userId !== userId) throw new Error('Attendance record not found');
+            const courseId = existing.courseId;
+            await prisma.attendanceRecord.delete({ where: { id: action.data.attendance_id } });
+            // Recalculate attendance percentage
+            const allRecords = await prisma.attendanceRecord.findMany({
+              where: { courseId, userId }
+            });
+            const totalClasses = allRecords.length;
+            const presentClasses = allRecords.filter((r: any) => r.status === 'present' || r.status === 'late').length;
+            const attendancePercentage = totalClasses > 0 ? (presentClasses / totalClasses) * 100 : 0;
+            await prisma.course.update({
+              where: { id: courseId },
+              data: { attendance: attendancePercentage }
+            });
+            console.log('Attendance deleted via AI:', action.data.attendance_id);
+            actionResults.push({ type: action.type, success: true, data: { attendancePercentage } });
+          } else if (action.type === 'add_assignment') {
+            // Find course by name or ID
+            let course;
+            if (action.data.courseId) {
+              course = await prisma.course.findFirst({
+                where: { id: action.data.courseId, userId }
+              });
+            } else if (action.data.courseName) {
+              course = await prisma.course.findFirst({
+                where: { 
+                  courseName: { contains: action.data.courseName, mode: 'insensitive' },
+                  userId 
+                }
+              });
+            }
+            if (!course) {
+              throw new Error(`Course not found: ${action.data.courseName || action.data.courseId}`);
+            }
+            const assignment = await prisma.assignment.create({
+              data: {
+                courseId: course.id,
+                title: action.data.title,
+                description: action.data.description || null,
+                dueDate: action.data.dueDate ? new Date(action.data.dueDate) : null,
+                startDate: action.data.startDate ? new Date(action.data.startDate) : null,
+                estimatedHours: action.data.estimatedHours ? parseFloat(action.data.estimatedHours.toString()) : null,
+                status: action.data.status || 'pending',
+                points: action.data.points ? parseInt(action.data.points.toString()) : null,
+              }
+            });
+            console.log('Assignment added via AI:', assignment);
+            actionResults.push({ type: action.type, success: true, data: assignment });
+          } else if (action.type === 'update_assignment') {
+            const existing = await prisma.assignment.findUnique({ where: { id: action.data.assignment_id } });
+            if (!existing) throw new Error('Assignment not found');
+            const course = await prisma.course.findUnique({ where: { id: existing.courseId } });
+            if (!course || course.userId !== userId) throw new Error('Not authorized');
+            const updateData: any = {};
+            if (action.data.title !== undefined) updateData.title = action.data.title;
+            if (action.data.description !== undefined) updateData.description = action.data.description;
+            if (action.data.dueDate !== undefined) updateData.dueDate = action.data.dueDate ? new Date(action.data.dueDate) : null;
+            if (action.data.startDate !== undefined) updateData.startDate = action.data.startDate ? new Date(action.data.startDate) : null;
+            if (action.data.estimatedHours !== undefined) updateData.estimatedHours = action.data.estimatedHours ? parseFloat(action.data.estimatedHours.toString()) : null;
+            if (action.data.status !== undefined) updateData.status = action.data.status;
+            if (action.data.points !== undefined) updateData.points = action.data.points ? parseInt(action.data.points.toString()) : null;
+            const updated = await prisma.assignment.update({
+              where: { id: action.data.assignment_id },
+              data: updateData
+            });
+            console.log('Assignment updated via AI:', updated);
+            actionResults.push({ type: action.type, success: true, data: updated });
+          } else if (action.type === 'delete_assignment') {
+            const existing = await prisma.assignment.findUnique({ where: { id: action.data.assignment_id } });
+            if (!existing) throw new Error('Assignment not found');
+            const course = await prisma.course.findUnique({ where: { id: existing.courseId } });
+            if (!course || course.userId !== userId) throw new Error('Not authorized');
+            await prisma.assignment.delete({ where: { id: action.data.assignment_id } });
+            console.log('Assignment deleted via AI:', action.data.assignment_id);
             actionResults.push({ type: action.type, success: true });
           } else if (action.type === 'add_skill') {
             console.log('Processing add_skill action:', JSON.stringify(action.data, null, 2));

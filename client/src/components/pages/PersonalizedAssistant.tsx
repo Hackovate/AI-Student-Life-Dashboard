@@ -279,6 +279,31 @@ export function PersonalizedAssistant() {
             });
           }
 
+          // Process assignment results
+          const assignmentResults = response.data.actionResults.filter((result: any) => 
+            ['add_assignment', 'update_assignment', 'delete_assignment'].includes(result.type)
+          );
+          if (assignmentResults.length > 0) {
+            const successful = assignmentResults.filter((r: any) => r.success);
+            const failed = assignmentResults.filter((r: any) => !r.success);
+            if (successful.length > 0) {
+              window.dispatchEvent(new CustomEvent('assignmentCreated', { 
+                detail: { assignments: successful.map((r: any) => r.data) } 
+              }));
+              successful.forEach((result: any) => {
+                const actionLabels: Record<string, string> = {
+                  'add_assignment': 'Assignment',
+                  'update_assignment': 'Assignment',
+                  'delete_assignment': 'Assignment'
+                };
+                toast.success(`${actionLabels[result.type] || 'Assignment'} ${result.type.includes('delete') ? 'deleted' : result.type.includes('update') ? 'updated' : 'added'} successfully!`);
+              });
+            }
+            failed.forEach((result: any) => {
+              toast.error(`Failed to process assignment: ${result.error || 'Unknown error'}`);
+            });
+          }
+
           // Process lifestyle results
           const lifestyleResults = response.data.actionResults.filter((result: any) => 
             ['add_lifestyle', 'update_lifestyle', 'delete_lifestyle'].includes(result.type)

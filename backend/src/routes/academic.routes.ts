@@ -30,7 +30,7 @@ router.post('/', async (req: AuthRequest, res) => {
         userId: req.userId!,
         courseName,
         courseCode: courseCode || null,
-        description: description || null,
+        description: description !== undefined && description !== '' ? description : null,
         credits: credits ? parseInt(credits) : null,
         semester: semester || null,
         year: year ? parseInt(year) : null,
@@ -59,7 +59,7 @@ router.put('/:id', async (req: AuthRequest, res) => {
       data: {
         courseName,
         courseCode: courseCode || null,
-        description: description || null,
+        description: description !== undefined && description !== '' ? description : null,
         credits: credits ? parseInt(credits) : null,
         semester: semester || null,
         year: year ? parseInt(year) : null,

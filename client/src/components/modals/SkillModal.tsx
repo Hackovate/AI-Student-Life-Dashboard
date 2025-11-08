@@ -278,12 +278,12 @@ export function SkillModal({ open, onClose, onSave, skill, mode }: SkillModalPro
         </div>
 
         {/* Content */}
-        <div className="flex-1 overflow-y-auto px-6 py-6">
+        <div className="flex-1 overflow-y-auto px-6 py-4">
           {/* Basic Info Tab */}
           {currentTab === 'basic' && (
-            <div className="space-y-6 max-w-2xl">
+            <div className="space-y-4 max-w-2xl">
               <div>
-                <Label htmlFor="skill-name" className="text-sm font-medium mb-2 block">
+                <Label htmlFor="skill-name" className="text-sm font-medium mb-1 block">
                   Skill Name <span className="text-destructive">*</span>
                 </Label>
                 <Input
@@ -297,7 +297,7 @@ export function SkillModal({ open, onClose, onSave, skill, mode }: SkillModalPro
 
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <Label htmlFor="category" className="text-sm font-medium mb-2 block">
+                  <Label htmlFor="category" className="text-sm font-medium mb-1 block">
                     Category
                   </Label>
                   <Select
@@ -319,7 +319,7 @@ export function SkillModal({ open, onClose, onSave, skill, mode }: SkillModalPro
                 </div>
 
                 <div>
-                  <Label htmlFor="level" className="text-sm font-medium mb-2 block">
+                  <Label htmlFor="level" className="text-sm font-medium mb-1 block">
                     Skill Level
                   </Label>
                   <Select
@@ -340,7 +340,7 @@ export function SkillModal({ open, onClose, onSave, skill, mode }: SkillModalPro
               </div>
 
               <div>
-                <Label htmlFor="description" className="text-sm font-medium mb-2 block">
+                <Label htmlFor="description" className="text-sm font-medium mb-1 block">
                   Description <span className="text-xs text-muted-foreground">(Optional)</span>
                 </Label>
                 <Textarea
@@ -348,13 +348,13 @@ export function SkillModal({ open, onClose, onSave, skill, mode }: SkillModalPro
                   value={formData.description}
                   onChange={(e) => setFormData({ ...formData, description: e.target.value })}
                   placeholder="What is this skill about? What do you hope to achieve?"
-                  rows={4}
-                  className="resize-none"
+                  rows={2}
+                  className="resize-none min-h-[60px]"
                 />
               </div>
 
               <div>
-                <Label htmlFor="goalStatement" className="text-sm font-medium mb-2 block">
+                <Label htmlFor="goalStatement" className="text-sm font-medium mb-1 block">
                   Goal Statement <span className="text-xs text-muted-foreground">(Optional)</span>
                 </Label>
                 <Input
@@ -368,7 +368,7 @@ export function SkillModal({ open, onClose, onSave, skill, mode }: SkillModalPro
 
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <Label htmlFor="durationMonths" className="text-sm font-medium mb-2 block">
+                  <Label htmlFor="durationMonths" className="text-sm font-medium mb-1 block">
                     Target Duration (months) <span className="text-xs text-muted-foreground">(Optional)</span>
                   </Label>
                   <Input
@@ -383,7 +383,7 @@ export function SkillModal({ open, onClose, onSave, skill, mode }: SkillModalPro
                 </div>
 
                 <div>
-                  <Label htmlFor="estimatedHours" className="text-sm font-medium mb-2 block">
+                  <Label htmlFor="estimatedHours" className="text-sm font-medium mb-1 block">
                     Estimated Hours <span className="text-xs text-muted-foreground">(Optional)</span>
                   </Label>
                   <Input
@@ -401,7 +401,7 @@ export function SkillModal({ open, onClose, onSave, skill, mode }: SkillModalPro
 
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <Label htmlFor="startDate" className="text-sm font-medium mb-2 block">
+                  <Label htmlFor="startDate" className="text-sm font-medium mb-1 block">
                     Start Date <span className="text-xs text-muted-foreground">(Optional)</span>
                   </Label>
                   <Input
@@ -414,7 +414,7 @@ export function SkillModal({ open, onClose, onSave, skill, mode }: SkillModalPro
                 </div>
 
                 <div>
-                  <Label htmlFor="endDate" className="text-sm font-medium mb-2 block">
+                  <Label htmlFor="endDate" className="text-sm font-medium mb-1 block">
                     Target End Date <span className="text-xs text-muted-foreground">(Optional)</span>
                   </Label>
                   <Input

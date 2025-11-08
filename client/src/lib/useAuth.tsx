@@ -6,6 +6,12 @@ interface User {
   email: string;
   firstName?: string;
   lastName?: string;
+  educationLevel?: string;
+  class?: string;
+  group?: string;
+  year?: number;
+  major?: string;
+  institution?: string;
 }
 
 interface AuthContextType {

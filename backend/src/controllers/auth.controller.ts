@@ -40,6 +40,14 @@ export const register = async (req: Request, res: Response) => {
         email: true,
         firstName: true,
         lastName: true,
+        educationLevel: true,
+        institution: true,
+        class: true,
+        group: true,
+        year: true,
+        major: true,
+        board: true,
+        expectedGraduation: true,
         createdAt: true
       }
     });
@@ -100,7 +108,15 @@ export const login = async (req: Request, res: Response) => {
         id: user.id,
         email: user.email,
         firstName: user.firstName,
-        lastName: user.lastName
+        lastName: user.lastName,
+        educationLevel: user.educationLevel,
+        institution: user.institution,
+        class: user.class,
+        group: user.group,
+        year: user.year,
+        major: user.major,
+        board: user.board,
+        expectedGraduation: user.expectedGraduation
       },
       token
     });
@@ -121,6 +137,14 @@ export const getProfile = async (req: Request, res: Response) => {
         email: true,
         firstName: true,
         lastName: true,
+        educationLevel: true,
+        institution: true,
+        class: true,
+        group: true,
+        year: true,
+        major: true,
+        board: true,
+        expectedGraduation: true,
         createdAt: true,
         updatedAt: true
       }
