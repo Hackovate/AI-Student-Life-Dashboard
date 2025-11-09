@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Sparkles, GraduationCap, BookOpen, Target, Wallet, ChevronRight, ChevronLeft, CheckCircle2 } from 'lucide-react';
+import { GraduationCap, BookOpen, Target, Wallet, ChevronRight, ChevronLeft, CheckCircle2 } from 'lucide-react';
 import { Card } from '../ui/card';
 import { Button } from '../ui/button';
 import { Input } from '../ui/input';
@@ -864,9 +864,11 @@ export function OnboardingPage() {
         <div className="p-6 md:p-8">
           {/* Header */}
           <div className="flex items-center gap-4 mb-8">
-            <div className="w-14 h-14 rounded-xl bg-gradient-to-br from-primary to-primary/80 flex items-center justify-center shadow-md shadow-primary/20">
-              <Sparkles className="w-7 h-7 text-primary-foreground" />
-            </div>
+            <img 
+              src="/Full Logo.svg" 
+              alt="Momentum Logo" 
+              className="h-12 md:h-16 w-auto"
+            />
             <div>
               <h1 className="text-3xl md:text-4xl font-bold text-foreground mb-1">Welcome to Momentum!</h1>
               <p className="text-muted-foreground text-base">Let's set up your profile</p>

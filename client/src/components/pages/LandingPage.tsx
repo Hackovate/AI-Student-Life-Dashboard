@@ -38,6 +38,7 @@ export function LandingPage() {
   const [email, setEmail] = useState('');
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [billingPeriod, setBillingPeriod] = useState<'monthly' | 'annual'>('monthly');
+  const [currency, setCurrency] = useState<'USD' | 'BDT'>('USD');
   const [showScrollTop, setShowScrollTop] = useState(false);
 
   const scrollToSection = (id: string) => {
@@ -196,22 +197,52 @@ export function LandingPage() {
 
   // Calculate pricing
   const getProPrice = () => {
-    if (billingPeriod === 'annual') {
-      const monthlyPrice = 5;
-      const annualPrice = monthlyPrice * 12;
-      const discount = annualPrice * 0.17;
-      return {
-        monthly: (annualPrice - discount) / 12,
-        annual: annualPrice - discount,
-        originalAnnual: annualPrice
-      };
+    if (currency === 'BDT') {
+      // Bangladesh pricing: 500 taka monthly, 300 taka first month, 15% annual discount
+      if (billingPeriod === 'annual') {
+        const monthlyPrice = 500;
+        const annualPrice = monthlyPrice * 12;
+        const discount = annualPrice * 0.15;
+        return {
+          monthly: (annualPrice - discount) / 12,
+          annual: annualPrice - discount,
+          originalAnnual: annualPrice,
+          discountPercent: 15
+        };
+      } else {
+        return {
+          monthly: 500,
+          firstMonth: 300,
+          annual: null,
+          originalAnnual: null,
+          discountPercent: null
+        };
+      }
     } else {
-      return {
-        monthly: 5,
-        firstMonth: 3,
-        annual: null,
-        originalAnnual: null
-      };
+      // USD pricing: $12 monthly, $6 first month, annual discounted to $10/month
+      if (billingPeriod === 'annual') {
+        const monthlyPrice = 12;
+        const annualPrice = monthlyPrice * 12; // $144/year
+        const discountedMonthly = 10;
+        const discountedAnnual = discountedMonthly * 12; // $120/year
+        const discount = annualPrice - discountedAnnual; // $24
+        // Calculate discount percentage: (discount / original) * 100
+        const discountPercent = Math.round((discount / annualPrice) * 100); // 24/144 = 16.67% ≈ 17%
+        return {
+          monthly: discountedMonthly,
+          annual: discountedAnnual,
+          originalAnnual: annualPrice,
+          discountPercent: discountPercent
+        };
+      } else {
+        return {
+          monthly: 12,
+          firstMonth: 6,
+          annual: null,
+          originalAnnual: null,
+          discountPercent: null
+        };
+      }
     }
   };
 
@@ -229,9 +260,7 @@ export function LandingPage() {
     },
     {
       name: 'Pro',
-      price: billingPeriod === 'monthly' 
-        ? `$${proPricing.firstMonth} first month, then $${proPricing.monthly}/mo`
-        : `$${proPricing.monthly.toFixed(2)}/mo`,
+      price: 'Pro',
       period: billingPeriod === 'monthly' ? 'month' : 'year',
       monthlyPrice: proPricing.monthly,
       annualPrice: proPricing.annual,
@@ -513,6 +542,35 @@ export function LandingPage() {
             </p>
           </div>
 
+          {/* Currency Toggle */}
+          <div className="flex flex-col items-center gap-3 mb-4">
+            <div className="flex items-center justify-center gap-4">
+              <span className={`text-sm font-medium ${currency === 'USD' ? 'text-foreground' : 'text-muted-foreground'}`}>
+                USD
+              </span>
+              <button
+                onClick={() => setCurrency(currency === 'USD' ? 'BDT' : 'USD')}
+                className="relative inline-flex h-6 w-11 items-center rounded-full bg-primary transition-colors focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2"
+                role="switch"
+                aria-checked={currency === 'BDT'}
+              >
+                <span
+                  className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
+                    currency === 'BDT' ? 'translate-x-6' : 'translate-x-1'
+                  }`}
+                />
+              </button>
+              <span className={`text-sm font-medium ${currency === 'BDT' ? 'text-foreground' : 'text-muted-foreground'}`}>
+                BDT (Bangladesh)
+              </span>
+            </div>
+            {currency === 'BDT' && (
+              <p className="text-sm text-primary font-semibold text-center max-w-md">
+                BDT pricing is exclusively available for students currently enrolled in educational institutions in Bangladesh. Verification may be required.
+              </p>
+            )}
+          </div>
+
           {/* Billing Toggle */}
           <div className="flex items-center justify-center gap-4 mb-8">
             <span className={`text-sm font-medium ${billingPeriod === 'monthly' ? 'text-foreground' : 'text-muted-foreground'}`}>
@@ -532,9 +590,9 @@ export function LandingPage() {
             </button>
             <span className={`text-sm font-medium ${billingPeriod === 'annual' ? 'text-foreground' : 'text-muted-foreground'}`}>
               Annual
-              {billingPeriod === 'annual' && (
+              {billingPeriod === 'annual' && proPricing.discountPercent && (
                 <span className="ml-2 text-xs bg-primary/10 text-primary px-2 py-0.5 rounded-full">
-                  17% OFF
+                  {proPricing.discountPercent}% OFF
                 </span>
               )}
             </span>
@@ -567,32 +625,32 @@ export function LandingPage() {
                       <div>
                         {billingPeriod === 'monthly' ? (
                           <div>
-                            <div className="flex items-baseline gap-2 justify-center">
+                            <div className="flex items-baseline gap-2 justify-center flex-wrap">
                               <span className="text-2xl font-bold text-foreground">
-                                ${plan.firstMonth}
+                                {currency === 'BDT' ? '৳' : '$'}{plan.firstMonth}
                               </span>
                               <span className="text-xl font-bold text-muted-foreground line-through">
-                                ${plan.monthlyPrice}
+                                {currency === 'BDT' ? '৳' : '$'}{plan.monthlyPrice}
                               </span>
                               <span className="text-lg text-muted-foreground">first month</span>
                             </div>
                             <div className="text-sm text-muted-foreground mt-1">
-                              Then ${plan.monthlyPrice}/mo
+                              Then {currency === 'BDT' ? '৳' : '$'}{plan.monthlyPrice}/mo
                             </div>
                           </div>
                         ) : (
                           <div>
-                            <div className="flex items-baseline gap-2 justify-center">
+                            <div className="flex items-baseline gap-2 justify-center flex-wrap">
                               <span className="text-4xl font-bold text-foreground">
-                                ${plan.monthlyPrice.toFixed(2)}
+                                {currency === 'BDT' ? '৳' : '$'}{plan.monthlyPrice.toFixed(2)}
                               </span>
                               <span className="text-2xl font-bold text-muted-foreground line-through">
-                                ${(plan.originalAnnual! / 12).toFixed(2)}
+                                {currency === 'BDT' ? '৳' : '$'}{(plan.originalAnnual! / 12).toFixed(2)}
                               </span>
                               <span className="text-lg text-muted-foreground">/mo</span>
                             </div>
                             <div className="text-sm text-primary font-medium mt-1">
-                              ${plan.annualPrice?.toFixed(2)}/year billed annually
+                              {currency === 'BDT' ? '৳' : '$'}{plan.annualPrice?.toFixed(2)}/year billed annually
                             </div>
                           </div>
                         )}

@@ -6,7 +6,6 @@ import { Textarea } from '../ui/textarea';
 import { Input } from '../ui/input';
 import { Badge } from '../ui/badge';
 import { CheckCircle2, Calendar, BookOpen } from 'lucide-react';
-import { useAuth } from '@/lib/useAuth';
 import { coursesAPI } from '@/lib/api';
 
 interface SyllabusModalProps {
@@ -32,7 +31,6 @@ export function SyllabusModal({
   courseId,
   loading = false
 }: SyllabusModalProps) {
-  const { user } = useAuth();
   const [syllabus, setSyllabus] = useState(existingSyllabus || '');
   const [isSaving, setIsSaving] = useState(false);
   const [showGenerateDialog, setShowGenerateDialog] = useState(false);
@@ -42,9 +40,6 @@ export function SyllabusModal({
   const [isCheckingAI, setIsCheckingAI] = useState(false);
   const [showSuccessModal, setShowSuccessModal] = useState(false);
   const [generatedTasks, setGeneratedTasks] = useState<{ count: number; message: string; existing?: boolean } | null>(null);
-  
-  // Check if user is school or college level
-  const isSchoolOrCollege = user?.educationLevel === 'school' || user?.educationLevel === 'college';
 
   useEffect(() => {
     // Update syllabus when existingSyllabus changes
@@ -227,7 +222,7 @@ export function SyllabusModal({
                     Delete
                   </Button>
                 )}
-                {existingSyllabus && onGenerate && isSchoolOrCollege && (
+                {existingSyllabus && onGenerate && (
                   <Button
                     type="button"
                     variant="default"
