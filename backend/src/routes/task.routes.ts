@@ -1,4 +1,4 @@
-import { Router } from 'express';
+import { Router, Response } from 'express';
 import { PrismaClient } from '@prisma/client';
 import { authenticate, AuthRequest } from '../middleware/auth.middleware';
 
@@ -8,7 +8,7 @@ const prisma = new PrismaClient();
 router.use(authenticate);
 
 // Get all tasks
-router.get('/', async (req: AuthRequest, res) => {
+router.get('/', async (req: AuthRequest, res: Response) => {
   try {
     const tasks = await prisma.task.findMany({
       where: { userId: req.userId },
@@ -21,7 +21,7 @@ router.get('/', async (req: AuthRequest, res) => {
 });
 
 // Create task
-router.post('/', async (req: AuthRequest, res) => {
+router.post('/', async (req: AuthRequest, res: Response) => {
   try {
     const { title, description, priority, status, dueDate } = req.body;
     const task = await prisma.task.create({
@@ -41,7 +41,7 @@ router.post('/', async (req: AuthRequest, res) => {
 });
 
 // Update task
-router.put('/:id', async (req: AuthRequest, res) => {
+router.put('/:id', async (req: AuthRequest, res: Response) => {
   try {
     const { id } = req.params;
     const { title, description, priority, status, dueDate, type, estimatedMinutes, 
@@ -128,7 +128,7 @@ router.put('/:id', async (req: AuthRequest, res) => {
 });
 
 // Delete task
-router.delete('/:id', async (req: AuthRequest, res) => {
+router.delete('/:id', async (req: AuthRequest, res: Response) => {
   try {
     const { id } = req.params;
     await prisma.task.delete({

@@ -21,6 +21,7 @@ import habitRoutes from './routes/habit.routes';
 import learningRoutes from './routes/learning.routes';
 import notificationRoutes from './routes/notification.routes';
 import { startDailySummaryScheduler } from './services/scheduler.service';
+import { runMigrations } from './migrate';
 
 // Load environment variables
 dotenv.config();
@@ -110,7 +111,7 @@ app.use('/api/learning', learningRoutes);
 app.use('/api/notifications', notificationRoutes);
 
 // Health check route
-app.get('/api/health', (req, res) => {
+app.get('/api/health', (req: express.Request, res: express.Response) => {
   res.json({ status: 'OK', message: 'Server is running' });
 });
 
@@ -131,14 +132,23 @@ app.use((err: any, req: express.Request, res: express.Response, next: express.Ne
   });
 });
 
-// Start server
-app.listen(PORT, () => {
-  console.log(`🚀 Server is running on port ${PORT}`);
-  console.log(`📊 Environment: ${process.env.NODE_ENV}`);
-  console.log(`🌐 CORS enabled for: ${process.env.CLIENT_URL}`);
+// Start server with migrations
+async function startServer() {
+  // Run migrations before starting server (only in production)
+  if (process.env.NODE_ENV === 'production') {
+    await runMigrations();
+  }
   
-  // Start daily summary scheduler
-  startDailySummaryScheduler();
-});
+  app.listen(PORT, () => {
+    console.log(`🚀 Server is running on port ${PORT}`);
+    console.log(`📊 Environment: ${process.env.NODE_ENV}`);
+    console.log(`🌐 CORS enabled for: ${process.env.CLIENT_URL}`);
+    
+    // Start daily summary scheduler
+    startDailySummaryScheduler();
+  });
+}
+
+startServer();
 
 export default app;

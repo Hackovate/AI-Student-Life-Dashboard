@@ -56,7 +56,7 @@ Complete step-by-step guide to deploy Momentum application using free hosting se
    - **Region**: Choose closest to you
    - **Branch**: `main` (or your default branch)
    - **Root Directory**: `backend` ⚠️ **CRITICAL: Must be set to `backend`**
-   - **Build Command**: `npm install && npx prisma generate && npm run build`
+   - **Build Command**: `npm install --include=dev && npx prisma generate && npm run build`
    - **Start Command**: `npm start`
    - **Plan**: **Free**
 
@@ -82,26 +82,27 @@ AI_SERVICE_URL=https://momentum-ai-service.onrender.com (set after AI service de
 - Generate a strong `JWT_SECRET` (at least 32 characters)
 - `CLIENT_URL` and `AI_SERVICE_URL` will be set after other services deploy
 
-### Step 3: Run Database Migrations
+### Step 3: Database Migrations (Automatic)
 
-After backend is deployed:
+**✅ Migrations run automatically on server startup!**
 
-1. In Render dashboard → Backend Service → **Shell** tab
-2. Run:
-   ```bash
-   npx prisma migrate deploy
-   ```
+The backend server automatically runs database migrations when it starts in production mode. You don't need to run them manually.
+
+**How it works:**
+- On first deployment, migrations will run automatically when the server starts
+- On subsequent deployments, migrations will check and apply any new migrations
+- If migrations fail, the server will log a warning but continue running (to prevent blocking deployments)
 
 **Note**: `prisma generate` is already included in the build command, so Prisma client is generated automatically during deployment.
 
-Or run migrations locally (if you have DATABASE_URL set):
+**For local development** (if you need to run migrations manually):
 ```bash
 cd backend
 export DATABASE_URL="postgresql://..." # Your Neon connection string
 npx prisma migrate deploy
 ```
 
-**Important**: The `prisma` CLI is in `devDependencies` and is only needed during build. The Prisma client (`@prisma/client`) is in `dependencies` and is required at runtime.
+**Important**: Both `prisma` CLI and `@prisma/client` are in `dependencies` because migrations run automatically on server startup in production.
 
 ### Step 4: Get Backend URL
 

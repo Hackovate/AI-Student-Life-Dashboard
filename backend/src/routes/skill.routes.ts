@@ -1,4 +1,4 @@
-import express from 'express';
+import express, { Response } from 'express';
 import { PrismaClient } from '@prisma/client';
 import { authenticate, AuthRequest } from '../middleware/auth.middleware';
 import { getSkillSuggestions, generateSkillRoadmap } from '../services/ai.service';
@@ -14,7 +14,7 @@ router.use(authenticate);
 // ===========================
 
 // Get all skills for user
-router.get('/', async (req: AuthRequest, res) => {
+router.get('/', async (req: AuthRequest, res: Response) => {
   try {
     const skills = await prisma.skill.findMany({
       where: { userId: req.userId! },
@@ -36,7 +36,7 @@ router.get('/', async (req: AuthRequest, res) => {
 });
 
 // Get single skill by ID
-router.get('/:id', async (req: AuthRequest, res) => {
+router.get('/:id', async (req: AuthRequest, res: Response) => {
   try {
     const { id } = req.params;
     const skill = await prisma.skill.findUnique({
@@ -64,7 +64,7 @@ router.get('/:id', async (req: AuthRequest, res) => {
 });
 
 // Create new skill
-router.post('/', async (req: AuthRequest, res) => {
+router.post('/', async (req: AuthRequest, res: Response) => {
   try {
     const { 
       name, 
@@ -161,7 +161,7 @@ router.post('/', async (req: AuthRequest, res) => {
 });
 
 // Update skill
-router.put('/:id', async (req: AuthRequest, res) => {
+router.put('/:id', async (req: AuthRequest, res: Response) => {
   try {
     const { id } = req.params;
     const existing = await prisma.skill.findUnique({ where: { id } });
@@ -219,7 +219,7 @@ router.put('/:id', async (req: AuthRequest, res) => {
 });
 
 // Delete skill
-router.delete('/:id', async (req: AuthRequest, res) => {
+router.delete('/:id', async (req: AuthRequest, res: Response) => {
   try {
     const { id } = req.params;
     const existing = await prisma.skill.findUnique({ where: { id } });
@@ -237,7 +237,7 @@ router.delete('/:id', async (req: AuthRequest, res) => {
 });
 
 // Get skill statistics
-router.get('/:id/stats', async (req: AuthRequest, res) => {
+router.get('/:id/stats', async (req: AuthRequest, res: Response) => {
   try {
     const { id } = req.params;
     const skill = await prisma.skill.findUnique({
@@ -277,7 +277,7 @@ router.get('/:id/stats', async (req: AuthRequest, res) => {
 // ===========================
 
 // Get milestones for a skill
-router.get('/:skillId/milestones', async (req: AuthRequest, res) => {
+router.get('/:skillId/milestones', async (req: AuthRequest, res: Response) => {
   try {
     const { skillId } = req.params;
     const skill = await prisma.skill.findUnique({ where: { id: skillId } });
@@ -299,7 +299,7 @@ router.get('/:skillId/milestones', async (req: AuthRequest, res) => {
 });
 
 // Add milestone to skill
-router.post('/:skillId/milestones', async (req: AuthRequest, res) => {
+router.post('/:skillId/milestones', async (req: AuthRequest, res: Response) => {
   try {
     const { skillId } = req.params;
     const { 
@@ -367,7 +367,7 @@ router.post('/:skillId/milestones', async (req: AuthRequest, res) => {
 });
 
 // Update milestone
-router.put('/milestones/:id', async (req: AuthRequest, res) => {
+router.put('/milestones/:id', async (req: AuthRequest, res: Response) => {
   try {
     const { id } = req.params;
     const existing = await prisma.milestone.findUnique({ where: { id } });
@@ -500,7 +500,7 @@ router.put('/milestones/:id', async (req: AuthRequest, res) => {
 });
 
 // Toggle milestone status (cycles: pending → in-progress → completed → pending)
-router.patch('/milestones/:id/toggle', async (req: AuthRequest, res) => {
+router.patch('/milestones/:id/toggle', async (req: AuthRequest, res: Response) => {
   try {
     const { id } = req.params;
     const existing = await prisma.milestone.findUnique({ where: { id } });
@@ -547,7 +547,7 @@ router.patch('/milestones/:id/toggle', async (req: AuthRequest, res) => {
 });
 
 // Delete milestone
-router.delete('/milestones/:id', async (req: AuthRequest, res) => {
+router.delete('/milestones/:id', async (req: AuthRequest, res: Response) => {
   try {
     const { id } = req.params;
     const existing = await prisma.milestone.findUnique({ where: { id } });
@@ -573,7 +573,7 @@ router.delete('/milestones/:id', async (req: AuthRequest, res) => {
 // ===========================
 
 // Get resources for a skill
-router.get('/:skillId/resources', async (req: AuthRequest, res) => {
+router.get('/:skillId/resources', async (req: AuthRequest, res: Response) => {
   try {
     const { skillId } = req.params;
     const skill = await prisma.skill.findUnique({ where: { id: skillId } });
@@ -595,7 +595,7 @@ router.get('/:skillId/resources', async (req: AuthRequest, res) => {
 });
 
 // Add learning resource
-router.post('/:skillId/resources', async (req: AuthRequest, res) => {
+router.post('/:skillId/resources', async (req: AuthRequest, res: Response) => {
   try {
     const { skillId } = req.params;
     const { title, type, url, content, description } = req.body;
@@ -632,7 +632,7 @@ router.post('/:skillId/resources', async (req: AuthRequest, res) => {
 });
 
 // Update learning resource
-router.put('/resources/:id', async (req: AuthRequest, res) => {
+router.put('/resources/:id', async (req: AuthRequest, res: Response) => {
   try {
     const { id } = req.params;
     const existing = await prisma.learningResource.findUnique({ where: { id } });
@@ -656,7 +656,7 @@ router.put('/resources/:id', async (req: AuthRequest, res) => {
 });
 
 // Delete learning resource
-router.delete('/resources/:id', async (req: AuthRequest, res) => {
+router.delete('/resources/:id', async (req: AuthRequest, res: Response) => {
   try {
     const { id } = req.params;
     const existing = await prisma.learningResource.findUnique({ where: { id } });
@@ -686,7 +686,7 @@ router.delete('/resources/:id', async (req: AuthRequest, res) => {
 // ===========================
 
 // Get AI recommendations for user
-router.get('/recommendations/all', async (req: AuthRequest, res) => {
+router.get('/recommendations/all', async (req: AuthRequest, res: Response) => {
   try {
     const recommendations = await prisma.aIRecommendation.findMany({
       where: { userId: req.userId!, completed: false },
@@ -709,7 +709,7 @@ router.get('/recommendations/all', async (req: AuthRequest, res) => {
 });
 
 // Generate AI recommendations (mock - will be replaced with LangChain)
-router.post('/recommendations/generate', async (req: AuthRequest, res) => {
+router.post('/recommendations/generate', async (req: AuthRequest, res: Response) => {
   try {
     // Mock AI recommendations based on user's skills
     const skills = await prisma.skill.findMany({
@@ -755,7 +755,7 @@ router.post('/recommendations/generate', async (req: AuthRequest, res) => {
 });
 
 // Mark recommendation as completed
-router.patch('/recommendations/:id/complete', async (req: AuthRequest, res) => {
+router.patch('/recommendations/:id/complete', async (req: AuthRequest, res: Response) => {
   try {
     const { id } = req.params;
     const existing = await prisma.aIRecommendation.findUnique({ where: { id } });
@@ -777,7 +777,7 @@ router.patch('/recommendations/:id/complete', async (req: AuthRequest, res) => {
 });
 
 // Delete recommendation
-router.delete('/recommendations/:id', async (req: AuthRequest, res) => {
+router.delete('/recommendations/:id', async (req: AuthRequest, res: Response) => {
   try {
     const { id } = req.params;
     const existing = await prisma.aIRecommendation.findUnique({ where: { id } });
@@ -801,7 +801,7 @@ router.delete('/recommendations/:id', async (req: AuthRequest, res) => {
 // AI-powered skill generation endpoint
 // This endpoint accepts the same structured payload as manual creation
 // Future AI microservice will POST to this endpoint with generated skill data
-router.post('/ai-generate', async (req: AuthRequest, res) => {
+router.post('/ai-generate', async (req: AuthRequest, res: Response) => {
   try {
     const { 
       name, 
@@ -931,7 +931,7 @@ router.post('/ai-generate', async (req: AuthRequest, res) => {
 // ===========================
 
 // Get AI-generated skill suggestions
-router.get('/generate/suggestions', async (req: AuthRequest, res) => {
+router.get('/generate/suggestions', async (req: AuthRequest, res: Response) => {
   try {
     const userId = req.userId!;
     
@@ -977,7 +977,7 @@ router.get('/generate/suggestions', async (req: AuthRequest, res) => {
 });
 
 // Generate complete skill roadmap
-router.post('/generate/roadmap', async (req: AuthRequest, res) => {
+router.post('/generate/roadmap', async (req: AuthRequest, res: Response) => {
   try {
     const userId = req.userId!;
     const { skillName } = req.body;
