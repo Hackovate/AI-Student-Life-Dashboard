@@ -76,8 +76,13 @@ app.use(helmet({
   crossOriginEmbedderPolicy: false, // Allow embedding if needed
 }));
 
-// CORS configuration - prioritize CLIENT_URL, fallback to VERCEL_URL or localhost
-const corsOrigin = clientUrl || (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : 'http://localhost:5173');
+// CORS configuration - normalize URL by removing trailing slashes
+const normalizeUrl = (url: string | undefined): string => {
+  if (!url) return 'http://localhost:5173';
+  return url.replace(/\/+$/, ''); // Remove trailing slashes
+};
+
+const corsOrigin = normalizeUrl(clientUrl) || (process.env.VERCEL_URL ? `https://${normalizeUrl(process.env.VERCEL_URL)}` : 'http://localhost:5173');
 
 app.use(cors({
   origin: corsOrigin,
