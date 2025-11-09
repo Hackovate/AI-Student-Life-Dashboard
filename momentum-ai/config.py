@@ -19,6 +19,10 @@ POLICY_MODEL_PATH = os.getenv("POLICY_MODEL_PATH", "./models/policy_model.pkl")
 TEMPERATURE = float(os.getenv("TEMPERATURE", "0.1"))
 PORT = int(os.getenv("PORT", "8001"))
 
+# CORS Configuration - restrict to specific origins for security
+ALLOWED_ORIGINS = os.getenv("ALLOWED_ORIGINS", "http://localhost:3000,http://localhost:5173").split(",")
+ALLOWED_ORIGINS = [origin.strip() for origin in ALLOWED_ORIGINS if origin.strip()]
+
 if not GEMINI_API_KEY:
     raise RuntimeError("Set GEMINI_API_KEY in .env")
 

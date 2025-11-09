@@ -13,7 +13,13 @@ export const authenticate = (req: AuthRequest, res: Response, next: NextFunction
       return res.status(401).json({ error: 'Authentication required' });
     }
 
-    const decoded = jwt.verify(token, process.env.JWT_SECRET || 'secret') as { userId: string };
+    const jwtSecret = process.env.JWT_SECRET;
+    if (!jwtSecret) {
+      console.error('JWT_SECRET is not set in environment variables');
+      return res.status(500).json({ error: 'Server configuration error' });
+    }
+
+    const decoded = jwt.verify(token, jwtSecret) as { userId: string };
     req.userId = decoded.userId;
     next();
   } catch (error) {

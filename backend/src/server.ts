@@ -1,6 +1,8 @@
 import express, { Application } from 'express';
 import cors from 'cors';
 import dotenv from 'dotenv';
+import rateLimit from 'express-rate-limit';
+import helmet from 'helmet';
 import authRoutes from './routes/auth.routes';
 import userRoutes from './routes/user.routes';
 import academicRoutes from './routes/academic.routes';
@@ -26,13 +28,64 @@ dotenv.config();
 const app: Application = express();
 const PORT = process.env.PORT || 5000;
 
+// Rate limiting configuration
+const authLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  max: 5, // Limit each IP to 5 requests per windowMs
+  message: 'Too many authentication attempts, please try again later.',
+  standardHeaders: true,
+  legacyHeaders: false,
+});
+
+const apiLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  max: 100, // Limit each IP to 100 requests per windowMs
+  message: 'Too many requests from this IP, please try again later.',
+  standardHeaders: true,
+  legacyHeaders: false,
+});
+
+// Validate required environment variables in production
+if (process.env.NODE_ENV === 'production') {
+  const requiredVars = ['JWT_SECRET', 'CLIENT_URL', 'DATABASE_URL'];
+  const missingVars = requiredVars.filter(varName => !process.env[varName]);
+  if (missingVars.length > 0) {
+    console.error(`Missing required environment variables: ${missingVars.join(', ')}`);
+    process.exit(1);
+  }
+}
+
 // Middleware
+const clientUrl = process.env.CLIENT_URL;
+if (!clientUrl && process.env.NODE_ENV === 'production') {
+  console.error('CLIENT_URL must be set in production');
+  process.exit(1);
+}
+
+// Security headers
+app.use(helmet({
+  contentSecurityPolicy: {
+    directives: {
+      defaultSrc: ["'self'"],
+      styleSrc: ["'self'", "'unsafe-inline'"],
+      scriptSrc: ["'self'"],
+      imgSrc: ["'self'", "data:", "https:"],
+    },
+  },
+  crossOriginEmbedderPolicy: false, // Allow embedding if needed
+}));
+
 app.use(cors({
-  origin: process.env.CLIENT_URL || 'http://localhost:5173',
+  origin: clientUrl || 'http://localhost:5173',
   credentials: true
 }));
-app.use(express.json());
-app.use(express.urlencoded({ extended: true }));
+
+// Body size limits to prevent DoS attacks
+app.use(express.json({ limit: '10mb' }));
+app.use(express.urlencoded({ extended: true, limit: '10mb' }));
+
+// Apply rate limiting to all API routes
+app.use('/api', apiLimiter);
 
 // Routes
 app.use('/api/auth', authRoutes);
@@ -60,7 +113,13 @@ app.get('/api/health', (req, res) => {
 
 // Error handling middleware
 app.use((err: any, req: express.Request, res: express.Response, next: express.NextFunction) => {
-  console.error(err.stack);
+  // Only log stack traces in development
+  if (process.env.NODE_ENV === 'development') {
+    console.error(err.stack);
+  } else {
+    console.error('Error:', err.message);
+  }
+  
   res.status(err.status || 500).json({
     error: {
       message: err.message || 'Internal Server Error',

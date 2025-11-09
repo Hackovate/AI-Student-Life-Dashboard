@@ -48,8 +48,14 @@ backend/prisma/migrations/
 *.tsbuildinfo
 
 # Environment files
+.env
 .env.local
 .env.*.local
+.env.production
+.env.development
+backend/.env
+client/.env
+momentum-ai/.env
 
 # OS files
 .DS_Store
