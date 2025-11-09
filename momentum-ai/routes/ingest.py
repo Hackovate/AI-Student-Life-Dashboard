@@ -83,6 +83,45 @@ def ingest(req: IngestRequest):
         "avg_chunks_per_doc": len(all_chunks) / len(req.docs) if req.docs else 0
     }
 
+@router.delete("/ingest/context")
+def delete_context(user_id: str = Query(...)):
+    """
+    Delete all user-editable context documents from ChromaDB.
+    This is called when unstructured context is updated to remove old versions.
+    user_id is passed as a query parameter.
+    """
+    try:
+        # Query all documents with type=context and source=user_edit for this user
+        # Note: ChromaDB doesn't have a direct delete by metadata filter
+        # So we need to query first, then delete by IDs
+        results = collection.get(
+            where={
+                "$and": [
+                    {"user_id": user_id},
+                    {"type": "context"},
+                    {"source": "user_edit"}
+                ]
+            }
+        )
+        
+        if results and results['ids']:
+            # Delete all old context documents
+            collection.delete(ids=results['ids'])
+            return {
+                "status": "ok",
+                "deleted_count": len(results['ids']),
+                "message": f"Deleted {len(results['ids'])} old context documents"
+            }
+        else:
+            return {
+                "status": "ok",
+                "deleted_count": 0,
+                "message": "No context documents found to delete"
+            }
+    except Exception as e:
+        print(f"Error deleting context: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
 @router.delete("/ingest/syllabus/{course_id}")
 def delete_syllabus(course_id: str, user_id: str = Query(...)):
     """

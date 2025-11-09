@@ -191,7 +191,7 @@ export function LandingPage() {
           <div className="flex h-16 items-center justify-between">
             {/* Logo */}
             <div className="flex items-center gap-3">
-              <img src="/Full Logo.svg" alt="Momentum Logo" className="h-10 w-auto" />
+              <img src="/Full Logo.svg" alt="Momentum Logo" className="h-16 w-auto" />
             </div>
 
             {/* Navigation Links */}
@@ -528,7 +528,7 @@ export function LandingPage() {
         <div className="grid md:grid-cols-4 gap-8 mb-8">
           {/* Logo and Description */}
           <div className="md:col-span-1">
-            <img src="/Full Logo.svg" alt="Momentum Logo" className="h-10 w-auto mb-4" />
+            <img src="/Full Logo.svg" alt="Momentum Logo" className="h-16 w-auto mb-4" />
             <p className="text-sm text-muted-foreground">
               Your personal AI student assistant for academics, skills, and productivity.
             </p>

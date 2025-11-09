@@ -1,6 +1,6 @@
 import { Request, Response } from 'express';
 import { PrismaClient } from '@prisma/client';
-import { ingestDocs } from '../services/ai.service';
+import { ingestDocs, deleteContextFromChromaDB } from '../services/ai.service';
 
 const prisma = new PrismaClient();
 
@@ -205,10 +205,14 @@ export const updateContext = async (req: Request, res: Response) => {
       });
 
       // Also save to ChromaDB for AI context retrieval
-      // Use a consistent ID so we can update it, but add timestamp for uniqueness
+      // IMPORTANT: Delete old context documents first to ensure AI only uses latest version
       if (unstructured.trim()) {
         try {
-          // Use a consistent base ID with timestamp to ensure it's always the latest
+          // Delete all old context documents before adding new one
+          // This ensures the AI forgets removed/previous context
+          await deleteContextFromChromaDB(userId);
+          
+          // Now add the new context document
           const contextId = `context_${userId}_latest`;
           await ingestDocs({
             user_id: userId,
@@ -226,6 +230,14 @@ export const updateContext = async (req: Request, res: Response) => {
         } catch (error) {
           console.error('Error updating unstructured context in ChromaDB:', error);
           // Continue even if ChromaDB update fails
+        }
+      } else {
+        // If unstructured context is empty, delete all old context documents
+        try {
+          await deleteContextFromChromaDB(userId);
+        } catch (error) {
+          console.error('Error deleting empty context from ChromaDB:', error);
+          // Continue even if deletion fails
         }
       }
     }

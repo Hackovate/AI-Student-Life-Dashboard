@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Send, Sparkles, X, Loader2, Trash2, AlertTriangle } from 'lucide-react';
+import { Send, Sparkles, X, Loader2, Trash2, AlertTriangle, Settings } from 'lucide-react';
 import { Card } from '../ui/card';
 import { Button } from '../ui/button';
 import { Textarea } from '../ui/textarea';
@@ -7,8 +7,9 @@ import { ScrollArea } from '../ui/scroll-area';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '../ui/alert-dialog';
 import { aiChatAPI } from '@/lib/api';
 import { toast } from 'sonner';
+import { useNotifications } from '@/lib/NotificationContext';
 import { ContextWindow } from '../modals/ContextWindow';
-import { Settings } from 'lucide-react';
+import { useAuth } from '@/lib/useAuth';
 
 interface Message {
   id: number;
@@ -98,10 +99,36 @@ function MessageBubble({ msg }: { msg: Message }) {
   );
 }
 
-const CHAT_STORAGE_KEY = 'momentum_ai_chat_history';
+const getChatStorageKey = (userId: string | undefined): string | null => {
+  if (!userId) return null;
+  return `momentum_ai_chat_history_${userId}`;
+};
 
-const getInitialMessages = (): Message[] => {
-  const saved = localStorage.getItem(CHAT_STORAGE_KEY);
+const getInitialMessages = (userId: string | undefined): Message[] => {
+  if (!userId) {
+    return [
+      {
+        id: 1,
+        type: 'ai',
+        content: "Hello! I'm your AI Student Life Assistant. I can help you manage tasks, plan your day, track expenses, and much more. How can I assist you today?",
+        timestamp: new Date().toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })
+      }
+    ];
+  }
+
+  const storageKey = getChatStorageKey(userId);
+  if (!storageKey) {
+    return [
+      {
+        id: 1,
+        type: 'ai',
+        content: "Hello! I'm your AI Student Life Assistant. I can help you manage tasks, plan your day, track expenses, and much more. How can I assist you today?",
+        timestamp: new Date().toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })
+      }
+    ];
+  }
+
+  const saved = localStorage.getItem(storageKey);
   if (saved) {
     try {
       const parsed = JSON.parse(saved);
@@ -123,19 +150,41 @@ const getInitialMessages = (): Message[] => {
 };
 
 export function PersonalizedAssistant() {
+  const { addNotification, fetchNotifications, refreshUnreadCount } = useNotifications();
+  const { user } = useAuth();
   const [message, setMessage] = useState('');
-  const [messages, setMessages] = useState<Message[]>(getInitialMessages);
+  const [messages, setMessages] = useState<Message[]>(() => getInitialMessages(user?.id));
   const [loading, setLoading] = useState(false);
   const [contextWindowOpen, setContextWindowOpen] = useState(false);
   const [clearChatDialogOpen, setClearChatDialogOpen] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
+  // Handle user changes - load their chat history or reset
+  useEffect(() => {
+    if (user?.id) {
+      const userMessages = getInitialMessages(user.id);
+      setMessages(userMessages);
+    } else {
+      // User logged out - reset to initial message
+      const initialMessage: Message = {
+        id: 1,
+        type: 'ai',
+        content: "Hello! I'm your AI Student Life Assistant. I can help you manage tasks, plan your day, track expenses, and much more. How can I assist you today?",
+        timestamp: new Date().toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })
+      };
+      setMessages([initialMessage]);
+    }
+  }, [user?.id]);
+
   // Save messages to localStorage whenever they change
   useEffect(() => {
-    if (messages.length > 0) {
-      localStorage.setItem(CHAT_STORAGE_KEY, JSON.stringify(messages));
+    if (messages.length > 0 && user?.id) {
+      const storageKey = getChatStorageKey(user.id);
+      if (storageKey) {
+        localStorage.setItem(storageKey, JSON.stringify(messages));
+      }
     }
-  }, [messages]);
+  }, [messages, user?.id]);
 
   // Auto-scroll to bottom when new messages arrive
   useEffect(() => {
@@ -158,7 +207,10 @@ export function PersonalizedAssistant() {
       timestamp: new Date().toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })
     };
     setMessages([initialMessage]);
-    localStorage.removeItem(CHAT_STORAGE_KEY);
+    const storageKey = getChatStorageKey(user?.id);
+    if (storageKey) {
+      localStorage.removeItem(storageKey);
+    }
     setClearChatDialogOpen(false);
     toast.success('Chat history cleared');
   };
@@ -212,11 +264,19 @@ export function PersonalizedAssistant() {
                 detail: { skills: successfulSkills.map((r: any) => r.data?.skillName || 'skill') } 
               }));
               successfulSkills.forEach((result: any) => {
-                toast.success(`Skill '${result.data?.skillName || 'skill'}' ${result.type === 'update_skill' ? 'updated' : 'created'} successfully!`);
+                const skillName = result.data?.skillName || 'skill';
+                const actionVerb = result.type === 'update_skill' ? 'updated' : 'created';
+                toast.success(`Skill '${skillName}' ${actionVerb} successfully!`);
+                
+                // Create detailed notification
+                const notificationMessage = `Skill "${skillName}" ${actionVerb} with milestones and resources`;
+                addNotification('success', notificationMessage, 'AI Assistant', result.type);
               });
             }
             failedSkills.forEach((result: any) => {
-              toast.error(`Failed to ${result.type === 'update_skill' ? 'update' : 'create'} skill: ${result.error || 'Unknown error'}`);
+              const errorMessage = `Failed to ${result.type === 'update_skill' ? 'update' : 'create'} skill: ${result.error || 'Unknown error'}`;
+              toast.error(errorMessage);
+              addNotification('error', errorMessage, 'AI Assistant', 'skill_process_failed');
             });
           }
 
@@ -239,7 +299,36 @@ export function PersonalizedAssistant() {
                   'update_savings_goal': 'Savings goal',
                   'delete_finance': 'Transaction'
                 };
-                toast.success(`${actionLabels[result.type] || 'Finance'} ${result.type.includes('delete') ? 'deleted' : result.type.includes('update') ? 'updated' : 'added'} successfully!`);
+                const actionLabel = actionLabels[result.type] || 'Finance';
+                const actionVerb = result.type.includes('delete') ? 'deleted' : result.type.includes('update') ? 'updated' : 'added';
+                toast.success(`${actionLabel} ${actionVerb} successfully!`);
+                
+                // Create detailed notification
+                let notificationMessage = '';
+                if (result.type === 'add_expense' || result.type === 'update_expense') {
+                  const amount = result.data?.amount || 'N/A';
+                  const category = result.data?.category || 'Unknown';
+                  const description = result.data?.description ? ` for ${result.data.description}` : '';
+                  notificationMessage = `Expense of ${amount} ${result.type === 'update_expense' ? 'updated' : 'added'}${description} (${category})`;
+                } else if (result.type === 'add_income' || result.type === 'update_income') {
+                  const amount = result.data?.amount || 'N/A';
+                  const category = result.data?.category || 'Unknown';
+                  const description = result.data?.description ? ` for ${result.data.description}` : '';
+                  notificationMessage = `Income of ${amount} ${result.type === 'update_income' ? 'updated' : 'recorded'}${description} (${category})`;
+                } else if (result.type === 'add_savings_goal' || result.type === 'update_savings_goal') {
+                  const title = result.data?.goalTitle || 'Savings goal';
+                  const amount = result.data?.targetAmount || 'N/A';
+                  notificationMessage = `Savings goal "${title}" ${result.type === 'update_savings_goal' ? 'updated' : 'added'} with target of ${amount}`;
+                } else if (result.type === 'delete_finance') {
+                  const amount = result.data?.amount || 'N/A';
+                  const category = result.data?.category || 'Unknown';
+                  const description = result.data?.description ? ` for ${result.data.description}` : '';
+                  notificationMessage = `Transaction of ${amount}${description} (${category}) deleted`;
+                } else {
+                  notificationMessage = `${actionLabel} ${actionVerb} successfully`;
+                }
+                
+                addNotification('success', notificationMessage, 'AI Assistant', result.type);
               });
             }
             failed.forEach((result: any) => {
@@ -259,7 +348,22 @@ export function PersonalizedAssistant() {
                 detail: { actions: successful.map((r: any) => r.type) } 
               }));
               successful.forEach((result: any) => {
-                toast.success(`Journal entry ${result.type.includes('delete') ? 'deleted' : result.type.includes('update') ? 'updated' : 'added'} successfully!`);
+                const actionVerb = result.type.includes('delete') ? 'deleted' : result.type.includes('update') ? 'updated' : 'added';
+                toast.success(`Journal entry ${actionVerb} successfully!`);
+                
+                // Create detailed notification
+                let notificationMessage = '';
+                const title = result.data?.title || 'Journal entry';
+                if (result.type === 'add_journal' || result.type === 'update_journal') {
+                  const mood = result.data?.mood ? ` (${result.data.mood} mood)` : '';
+                  notificationMessage = `Journal entry "${title}" ${result.type === 'update_journal' ? 'updated' : 'added'}${mood}`;
+                } else if (result.type === 'delete_journal') {
+                  notificationMessage = `Journal entry "${title}" deleted`;
+                } else {
+                  notificationMessage = `Journal entry ${actionVerb} successfully`;
+                }
+                
+                addNotification('success', notificationMessage, 'AI Assistant', result.type);
               });
             }
             failed.forEach((result: any) => {
@@ -279,16 +383,32 @@ export function PersonalizedAssistant() {
                 detail: { assignments: successful.map((r: any) => r.data) } 
               }));
               successful.forEach((result: any) => {
-                const actionLabels: Record<string, string> = {
-                  'add_assignment': 'Assignment',
-                  'update_assignment': 'Assignment',
-                  'delete_assignment': 'Assignment'
-                };
-                toast.success(`${actionLabels[result.type] || 'Assignment'} ${result.type.includes('delete') ? 'deleted' : result.type.includes('update') ? 'updated' : 'added'} successfully!`);
+                const actionVerb = result.type.includes('delete') ? 'deleted' : result.type.includes('update') ? 'updated' : 'added';
+                toast.success(`Assignment ${actionVerb} successfully!`);
+                
+                // Create detailed notification
+                let notificationMessage = '';
+                if (result.type === 'add_assignment' || result.type === 'update_assignment') {
+                  const title = result.data?.title || 'Assignment';
+                  const courseName = result.data?.course?.courseName || result.data?.courseName || '';
+                  const courseInfo = courseName ? ` for ${courseName}` : '';
+                  notificationMessage = `Assignment "${title}" ${result.type === 'update_assignment' ? 'updated' : 'added'}${courseInfo}`;
+                } else if (result.type === 'delete_assignment') {
+                  const title = result.data?.title || 'Assignment';
+                  const courseName = result.data?.courseName || '';
+                  const courseInfo = courseName ? ` for ${courseName}` : '';
+                  notificationMessage = `Assignment "${title}" deleted${courseInfo}`;
+                } else {
+                  notificationMessage = `Assignment ${actionVerb} successfully`;
+                }
+                
+                addNotification('success', notificationMessage, 'AI Assistant', result.type);
               });
             }
             failed.forEach((result: any) => {
-              toast.error(`Failed to process assignment: ${result.error || 'Unknown error'}`);
+              const errorMessage = `Failed to process assignment: ${result.error || 'Unknown error'}`;
+              toast.error(errorMessage);
+              addNotification('error', errorMessage, 'AI Assistant', 'assignment_process_failed');
             });
           }
 
@@ -304,7 +424,25 @@ export function PersonalizedAssistant() {
                 detail: { actions: successful.map((r: any) => r.type) } 
               }));
               successful.forEach((result: any) => {
-                toast.success(`Lifestyle record ${result.type.includes('delete') ? 'deleted' : result.type.includes('update') ? 'updated' : 'added'} successfully!`);
+                const actionVerb = result.type.includes('delete') ? 'deleted' : result.type.includes('update') ? 'updated' : 'added';
+                toast.success(`Lifestyle record ${actionVerb} successfully!`);
+                
+                // Create detailed notification
+                let notificationMessage = '';
+                if (result.type === 'add_lifestyle' || result.type === 'update_lifestyle') {
+                  const sleep = result.data?.sleepHours ? `${result.data.sleepHours}h sleep` : '';
+                  const exercise = result.data?.exerciseMinutes ? `${result.data.exerciseMinutes}min exercise` : '';
+                  const meal = result.data?.mealQuality || '';
+                  const parts = [sleep, exercise, meal].filter(Boolean);
+                  const details = parts.length > 0 ? `: ${parts.join(', ')}` : '';
+                  notificationMessage = `Lifestyle record ${result.type === 'update_lifestyle' ? 'updated' : 'added'}${details}`;
+                } else if (result.type === 'delete_lifestyle') {
+                  notificationMessage = 'Lifestyle record deleted';
+                } else {
+                  notificationMessage = `Lifestyle record ${actionVerb} successfully`;
+                }
+                
+                addNotification('success', notificationMessage, 'AI Assistant', result.type);
               });
             }
             failed.forEach((result: any) => {
@@ -327,8 +465,24 @@ export function PersonalizedAssistant() {
                 if (result.type === 'toggle_habit') {
                   toast.success(`Habit marked as ${result.data?.completed ? 'completed' : 'incomplete'}!`);
                 } else {
-                  toast.success(`Habit ${result.type.includes('delete') ? 'deleted' : result.type.includes('update') ? 'updated' : 'added'} successfully!`);
+                  const actionVerb = result.type.includes('delete') ? 'deleted' : result.type.includes('update') ? 'updated' : 'added';
+                  toast.success(`Habit ${actionVerb} successfully!`);
                 }
+                
+                // Create detailed notification
+                let notificationMessage = '';
+                const habitName = result.data?.habitName || 'Habit';
+                if (result.type === 'toggle_habit') {
+                  notificationMessage = `Habit "${habitName}" marked as ${result.data?.completed ? 'completed' : 'incomplete'}`;
+                } else if (result.type === 'add_habit' || result.type === 'update_habit') {
+                  notificationMessage = `Habit "${habitName}" ${result.type === 'update_habit' ? 'updated' : 'added'}`;
+                } else if (result.type === 'delete_habit') {
+                  notificationMessage = `Habit "${habitName}" deleted`;
+                } else {
+                  notificationMessage = `Habit ${result.type.includes('delete') ? 'deleted' : result.type.includes('update') ? 'updated' : 'added'} successfully`;
+                }
+                
+                addNotification('success', notificationMessage, 'AI Assistant', result.type);
               });
             }
             failed.forEach((result: any) => {

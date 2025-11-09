@@ -47,6 +47,7 @@ model User {
   aiFeedbacks       AIFeedback[]
   habits            Habit[]
   taskPatterns      UserTaskPattern[]
+  notifications     Notification[]
 
   @@map("users")
 }
@@ -458,4 +459,21 @@ model UserTaskPattern {
   user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@map("user_task_patterns")
+}
+
+model Notification {
+  id        String   @id @default(uuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  type      String   // "success", "error", "warning", "info"
+  title     String?
+  message   String   @db.Text
+  source    String?  // e.g., "DailyPlanner", "Journal", "AI Assistant"
+  action    String?  // e.g., "task_added", "plan_generated", "assignment_created"
+  read      Boolean  @default(false)
+  createdAt DateTime @default(now())
+  
+  @@index([userId, read])
+  @@index([userId, createdAt])
+  @@map("notifications")
 }

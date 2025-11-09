@@ -11,7 +11,7 @@ from fastapi import FastAPI, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
 from config import PORT, GEMINI_MODEL
 from websocket_manager import ws_manager
-from routes import ingest, planning, onboarding, chat, skill_generation
+from routes import ingest, planning, onboarding, chat, skill_generation, notification
 
 # Create FastAPI app
 app = FastAPI(title="Momentum AI microservice")
@@ -31,6 +31,7 @@ app.include_router(planning.router)
 app.include_router(onboarding.router)
 app.include_router(chat.router)
 app.include_router(skill_generation.router)
+app.include_router(notification.router)
 
 # WebSocket endpoint for realtime updates
 @app.websocket("/ws/{user_id}")

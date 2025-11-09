@@ -11,9 +11,11 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '.
 import { useApp } from '../../lib/AppContext';
 import { journalAPI } from '../../lib/api';
 import { toast } from 'sonner';
+import { useNotifications } from '../../lib/NotificationContext';
 
 export function Journal() {
   const { journalEntries, addJournalEntry, updateJournalEntry, deleteJournalEntry, setJournalEntries } = useApp();
+  const { addNotification } = useNotifications();
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
   const [editingEntryId, setEditingEntryId] = useState<string | null>(null);
@@ -66,7 +68,9 @@ export function Journal() {
 
   const handleAddEntry = async () => {
     if (!newEntry.title || !newEntry.content) {
-      toast.error('Please fill in title and content');
+      const message = 'Please fill in title and content';
+      toast.error(message);
+      addNotification('error', message, 'Journal', 'validation_error');
       return;
     }
 
@@ -79,10 +83,14 @@ export function Journal() {
 
       setNewEntry({ title: '', content: '', mood: 'good', tags: '' });
       setIsAddDialogOpen(false);
-      toast.success('Journal entry added!');
+      const successMessage = 'Journal entry added!';
+      toast.success(successMessage);
+      addNotification('success', successMessage, 'Journal', 'entry_added');
     } catch (error) {
       console.error('Error adding journal entry:', error);
-      toast.error('Failed to add journal entry');
+      const errorMessage = 'Failed to add journal entry';
+      toast.error(errorMessage);
+      addNotification('error', errorMessage, 'Journal', 'entry_add_failed');
     }
   };
 
@@ -99,7 +107,9 @@ export function Journal() {
 
   const handleUpdateEntry = async () => {
     if (!editEntry.title || !editEntry.content) {
-      toast.error('Please fill in title and content');
+      const message = 'Please fill in title and content';
+      toast.error(message);
+      addNotification('error', message, 'Journal', 'validation_error');
       return;
     }
 
@@ -113,20 +123,28 @@ export function Journal() {
       setEditEntry({ title: '', content: '', mood: 'good', tags: '' });
       setEditingEntryId(null);
       setIsEditDialogOpen(false);
-      toast.success('Journal entry updated!');
+      const successMessage = 'Journal entry updated!';
+      toast.success(successMessage);
+      addNotification('success', successMessage, 'Journal', 'entry_updated');
     } catch (error) {
       console.error('Error updating journal entry:', error);
-      toast.error('Failed to update journal entry');
+      const errorMessage = 'Failed to update journal entry';
+      toast.error(errorMessage);
+      addNotification('error', errorMessage, 'Journal', 'entry_update_failed');
     }
   };
 
   const handleDeleteEntry = async (id: string) => {
     try {
       await deleteJournalEntry(id);
-      toast.success('Entry deleted!');
+      const successMessage = 'Entry deleted!';
+      toast.success(successMessage);
+      addNotification('success', successMessage, 'Journal', 'entry_deleted');
     } catch (error) {
       console.error('Error deleting journal entry:', error);
-      toast.error('Failed to delete entry');
+      const errorMessage = 'Failed to delete entry';
+      toast.error(errorMessage);
+      addNotification('error', errorMessage, 'Journal', 'entry_delete_failed');
     }
   };
 

@@ -11,8 +11,11 @@ import { Badge as BadgeComponent } from '../ui/badge';
 import { ProgressModal } from '../modals/ProgressModal';
 import { tasksAPI, coursesAPI, skillsAPI, planningAPI, learningAPI } from '../../lib/api';
 import { toast } from 'sonner';
+import { useNotifications } from '../../lib/NotificationContext';
 
 export function DailyPlanner() {
+  const { addNotification } = useNotifications();
+  
   // Always initialize with today's date (use local date, not UTC)
   const getTodayDate = () => {
     const today = new Date();
@@ -77,6 +80,27 @@ export function DailyPlanner() {
   // Fetch all tasks for the selected date
   useEffect(() => {
     loadAllTasks();
+  }, [selectedDate]);
+
+  // Refresh tasks when page becomes visible or gains focus (e.g., when navigating back to this page)
+  useEffect(() => {
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'visible') {
+        loadAllTasks();
+      }
+    };
+
+    const handleFocus = () => {
+      loadAllTasks();
+    };
+
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    window.addEventListener('focus', handleFocus);
+    
+    return () => {
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+      window.removeEventListener('focus', handleFocus);
+    };
   }, [selectedDate]);
 
   // Helper to get next status in cycle: pending → in-progress → completed → in-progress (reopen)
@@ -262,18 +286,23 @@ export function DailyPlanner() {
           const dueDate = task.dueDate ? new Date(task.dueDate) : null;
           const status = task.status?.toLowerCase() || 'pending';
           const isPendingOrInProgress = (status === 'pending' || status === 'in-progress');
-          const isCompleted = (status === 'completed');
+          const isCompleted = (status === 'completed' || status === 'done');
+          
+          // Check if due date matches selected date
+          const isDueToday = dueDate && dueDate >= todayStart && dueDate <= todayEnd;
           
           // Include if:
           // - Due date is today (always show, regardless of status)
-          // - Status is pending/in-progress (show active tasks)
-          // - Status is completed AND due date is today or in the past (show completed tasks)
+          // - Status is pending/in-progress (show ALL active tasks, regardless of due date)
+          //   This ensures tasks added from Dashboard without due dates show up
+          // - Status is completed AND due date is today or in the past
           // - Status is completed AND no due date (show completed tasks without dates)
-          if (
-            (dueDate && dueDate >= todayStart && dueDate <= todayEnd) ||
-            isPendingOrInProgress ||
-            (isCompleted && (!dueDate || dueDate <= todayEnd))
-          ) {
+          const shouldInclude = 
+            isDueToday ||
+            isPendingOrInProgress || // Show all pending/in-progress tasks regardless of date
+            (isCompleted && (!dueDate || dueDate <= todayEnd));
+          
+          if (shouldInclude) {
             tasks.push({
               id: task.id,
               title: task.title,
@@ -295,7 +324,9 @@ export function DailyPlanner() {
       setAllTasks(tasks);
     } catch (error) {
       console.error('Error loading tasks:', error);
-      toast.error('Failed to load tasks');
+      const message = 'Failed to load tasks';
+      toast.error(message);
+      addNotification('error', message, 'DailyPlanner', 'load_tasks_failed');
     } finally {
       setLoading(false);
     }
@@ -343,7 +374,9 @@ export function DailyPlanner() {
 
   const handleAddTask = async () => {
     if (!newTask.title) {
-      toast.error('Please enter a task title');
+      const message = 'Please enter a task title';
+      toast.error(message);
+      addNotification('error', message, 'DailyPlanner', 'validation_error');
       return;
     }
 
@@ -379,11 +412,15 @@ export function DailyPlanner() {
       });
       setAiPrediction(null);
       setIsAddDialogOpen(false);
-      toast.success('Task added successfully!');
+      const successMessage = 'Task added successfully!';
+      toast.success(successMessage);
+      addNotification('success', successMessage, 'DailyPlanner', 'task_added');
       await loadAllTasks();
     } catch (error) {
       console.error('Error adding task:', error);
-      toast.error('Failed to add task');
+      const errorMessage = 'Failed to add task';
+      toast.error(errorMessage);
+      addNotification('error', errorMessage, 'DailyPlanner', 'task_add_failed');
     }
   };
 
@@ -457,9 +494,13 @@ export function DailyPlanner() {
           const shiftedCount = plan.shifted_tasks.length;
           const nextDate = new Date(selectedDate);
           nextDate.setDate(nextDate.getDate() + 1);
-          toast.success(`${shiftedCount} task${shiftedCount > 1 ? 's' : ''} shifted to ${nextDate.toLocaleDateString()}`);
+          const message = `${shiftedCount} task${shiftedCount > 1 ? 's' : ''} shifted to ${nextDate.toLocaleDateString()}`;
+          toast.success(message);
+          addNotification('success', message, 'DailyPlanner', 'tasks_shifted');
         } else {
-          toast.success('Your day has been generated!');
+          const message = 'Your day has been generated!';
+          toast.success(message);
+          addNotification('success', message, 'DailyPlanner', 'plan_generated');
         }
         
         await loadAllTasks(); // Reload to get updated tasks
@@ -468,7 +509,9 @@ export function DailyPlanner() {
       }
     } catch (error: any) {
       console.error('Error generating day:', error);
-      toast.error(error.message || 'Failed to generate your day');
+      const message = error.message || 'Failed to generate your day';
+      toast.error(message);
+      addNotification('error', message, 'DailyPlanner', 'plan_generation_failed');
     } finally {
       setGenerating(false);
     }
@@ -554,17 +597,23 @@ export function DailyPlanner() {
         
         // Handle task shifts (move tasks to next day)
         if (rebalancedPlan.shifted_tasks && rebalancedPlan.shifted_tasks.length > 0) {
-          toast.success(`${rebalancedPlan.shifted_tasks.length} tasks shifted to tomorrow`);
+          const shiftMessage = `${rebalancedPlan.shifted_tasks.length} tasks shifted to tomorrow`;
+          toast.success(shiftMessage);
+          addNotification('success', shiftMessage, 'DailyPlanner', 'tasks_rebalanced');
         }
         
-        toast.success('Your day has been rebalanced!');
+        const rebalanceMessage = 'Your day has been rebalanced!';
+        toast.success(rebalanceMessage);
+        addNotification('success', rebalanceMessage, 'DailyPlanner', 'plan_rebalanced');
         await loadAllTasks();
       } else {
         throw new Error(rebalanceResponse.error || 'Failed to rebalance plan');
       }
     } catch (error: any) {
       console.error('Error rebalancing day:', error);
-      toast.error(error.message || 'Failed to rebalance your day');
+      const message = error.message || 'Failed to rebalance your day';
+      toast.error(message);
+      addNotification('error', message, 'DailyPlanner', 'rebalance_failed');
     } finally {
       setRebalancing(false);
     }
@@ -699,11 +748,10 @@ export function DailyPlanner() {
               const completionRate = prediction.averages?.completionRate || 1;
               const fasterPercent = Math.round((1 - completionRate) * 100);
               
-              toast.success(
-                `AI Prediction: You typically complete ${task.source} tasks ${fasterPercent > 0 ? fasterPercent + '% faster' : 'at estimated pace'}. Suggested due date: ${suggestedDueDate.toLocaleDateString()} (${daysSaved} days earlier)`,
-                { 
-                  duration: 8000,
-                  action: {
+              const predictionMessage = `AI Prediction: You typically complete ${task.source} tasks ${fasterPercent > 0 ? fasterPercent + '% faster' : 'at estimated pace'}. Suggested due date: ${suggestedDueDate.toLocaleDateString()} (${daysSaved} days earlier)`;
+              toast.success(predictionMessage, {
+                duration: 8000,
+                action: {
                     label: 'Adjust',
                     onClick: async () => {
                       try {
@@ -713,31 +761,39 @@ export function DailyPlanner() {
                             dueDate: dueDateStr,
                             daysAllocated: Math.ceil(prediction.predictedDays)
                           });
-                          toast.success('Due date adjusted based on your learning patterns!');
+                          const adjustMessage = 'Due date adjusted based on your learning patterns!';
+                          toast.success(adjustMessage);
+                          addNotification('success', adjustMessage, 'DailyPlanner', 'due_date_adjusted');
                           await loadAllTasks();
                         } else if (task.source === 'skill' && task.type === 'milestone') {
                           await skillsAPI.updateMilestone(task.sourceId, {
                             dueDate: dueDateStr,
                             daysAllocated: Math.ceil(prediction.predictedDays)
                           });
-                          toast.success('Due date adjusted based on your learning patterns!');
+                          const adjustMessage = 'Due date adjusted based on your learning patterns!';
+                          toast.success(adjustMessage);
+                          addNotification('success', adjustMessage, 'DailyPlanner', 'due_date_adjusted');
                           await loadAllTasks();
                         } else if (task.source === 'personal' && task.type === 'task') {
                           await tasksAPI.update(task.sourceId, {
                             dueDate: dueDateStr,
                             daysAllocated: Math.ceil(prediction.predictedDays)
                           });
-                          toast.success('Due date adjusted based on your learning patterns!');
+                          const adjustMessage = 'Due date adjusted based on your learning patterns!';
+                          toast.success(adjustMessage);
+                          addNotification('success', adjustMessage, 'DailyPlanner', 'due_date_adjusted');
                           await loadAllTasks();
                         }
                       } catch (err) {
                         console.error('Error adjusting due date:', err);
-                        toast.error('Failed to adjust due date');
+                        const errorMessage = 'Failed to adjust due date';
+                        toast.error(errorMessage);
+                        addNotification('error', errorMessage, 'DailyPlanner', 'due_date_adjust_failed');
                       }
                     }
                   }
-                }
-              );
+              });
+              addNotification('info', predictionMessage, 'DailyPlanner', 'ai_prediction');
             }
           }
         } catch (err) {
@@ -748,10 +804,9 @@ export function DailyPlanner() {
       
       // Show adaptive insights
       if (adaptiveSchedule && adaptiveSchedule.predictedTotalTime < estimatedHours) {
-        toast.success(
-          `Great progress! Based on your pace, you'll finish in ${adaptiveSchedule.completionPrediction} days (faster than estimated!)`,
-          { duration: 5000 }
-        );
+        const progressMessage = `Great progress! Based on your pace, you'll finish in ${adaptiveSchedule.completionPrediction} days (faster than estimated!)`;
+        toast.success(progressMessage, { duration: 5000 });
+        addNotification('success', progressMessage, 'DailyPlanner', 'progress_update');
       }
       
       await loadAllTasks();
@@ -759,7 +814,9 @@ export function DailyPlanner() {
       setProgressTask(null);
     } catch (error) {
       console.error('Error saving progress:', error);
-      toast.error('Failed to save progress');
+      const errorMessage = 'Failed to save progress';
+      toast.error(errorMessage);
+      addNotification('error', errorMessage, 'DailyPlanner', 'progress_save_failed');
     }
   };
 
@@ -806,7 +863,9 @@ export function DailyPlanner() {
       await loadAllTasks(); // Reload to ensure sync
     } catch (error) {
       console.error('Error updating task:', error);
-      toast.error('Failed to update task');
+      const errorMessage = 'Failed to update task';
+      toast.error(errorMessage);
+      addNotification('error', errorMessage, 'DailyPlanner', 'task_update_failed');
       // Revert optimistic update
       await loadAllTasks();
     }
@@ -815,11 +874,15 @@ export function DailyPlanner() {
   const handleDeleteTask = async (taskId: string) => {
     try {
       await tasksAPI.delete(taskId);
-      toast.success('Task deleted successfully!');
+      const successMessage = 'Task deleted successfully!';
+      toast.success(successMessage);
+      addNotification('success', successMessage, 'DailyPlanner', 'task_deleted');
       await loadAllTasks();
     } catch (error) {
       console.error('Error deleting task:', error);
-      toast.error('Failed to delete task');
+      const errorMessage = 'Failed to delete task';
+      toast.error(errorMessage);
+      addNotification('error', errorMessage, 'DailyPlanner', 'task_delete_failed');
     }
   };
 
@@ -839,7 +902,9 @@ export function DailyPlanner() {
 
   const handleUpdateTask = async () => {
     if (!newTask.title) {
-      toast.error('Please enter a task title');
+      const message = 'Please enter a task title';
+      toast.error(message);
+      addNotification('error', message, 'DailyPlanner', 'validation_error');
       return;
     }
 
@@ -856,11 +921,15 @@ export function DailyPlanner() {
       setNewTask({ title: '', description: '', dueDate: '', priority: 'medium', estimatedHours: '', daysAllocated: '', startDate: '' });
       setEditingTask(null);
       setIsEditDialogOpen(false);
-      toast.success('Task updated successfully!');
+      const successMessage = 'Task updated successfully!';
+      toast.success(successMessage);
+      addNotification('success', successMessage, 'DailyPlanner', 'task_updated');
       await loadAllTasks();
     } catch (error) {
       console.error('Error updating task:', error);
-      toast.error('Failed to update task');
+      const errorMessage = 'Failed to update task';
+      toast.error(errorMessage);
+      addNotification('error', errorMessage, 'DailyPlanner', 'task_update_failed');
     }
   };
 
@@ -875,10 +944,19 @@ export function DailyPlanner() {
     }
   };
 
-  // Filter tasks: if plan is generated, show only tasks in the schedule
+  // Filter tasks: if plan is generated, show tasks in the schedule PLUS all pending/in-progress tasks
+  // This ensures newly added tasks (from Dashboard) are always visible
   const tasksToDisplay = isDayGenerated && dailyPlan?.schedule 
     ? allTasks.filter((task: any) => {
-        // Check if task is in the plan schedule
+        const status = task.status?.toLowerCase() || 'pending';
+        const isPendingOrInProgress = (status === 'pending' || status === 'in-progress');
+        
+        // Always show pending/in-progress tasks (even if not in schedule) so new tasks are visible
+        if (isPendingOrInProgress) {
+          return true;
+        }
+        
+        // For completed tasks, only show if they're in the plan schedule
         return dailyPlan.schedule.some((scheduledItem: any) => 
           scheduledItem.task_id === task.id || scheduledItem.task_id === task.sourceId
         );
@@ -1379,7 +1457,9 @@ export function DailyPlanner() {
                               const suggestedDue = getSuggestedDueDate(newTask.startDate, aiPrediction.predictedDays);
                               if (suggestedDue) {
                                 setNewTask({ ...newTask, dueDate: suggestedDue, daysAllocated: aiPrediction.predictedDays.toString() });
-                                toast.success(`Due date adjusted to ${new Date(suggestedDue).toLocaleDateString()} based on your patterns`);
+                                const adjustMessage = `Due date adjusted to ${new Date(suggestedDue).toLocaleDateString()} based on your patterns`;
+                                toast.success(adjustMessage);
+                                addNotification('success', adjustMessage, 'DailyPlanner', 'due_date_adjusted');
                               }
                             }}
                           >

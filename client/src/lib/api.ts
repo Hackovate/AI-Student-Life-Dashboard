@@ -693,6 +693,32 @@ export const aiChatAPI = {
       body: JSON.stringify({ message, conversation_history: conversationHistory || [] }),
     });
   },
+
+  generateDailySummary: async () => {
+    return apiRequest<{
+      success: boolean;
+      message: string;
+      data: {
+        summary: string;
+        stats: any;
+      };
+    }>('/ai/summary/daily', {
+      method: 'POST',
+    });
+  },
+
+  generateMonthlySummary: async () => {
+    return apiRequest<{
+      success: boolean;
+      message: string;
+      data: {
+        summary: string;
+        stats: any;
+      };
+    }>('/ai/summary/monthly', {
+      method: 'POST',
+    });
+  },
 };
 
 // Habits API
@@ -944,4 +970,57 @@ export const learningAPI = {
     estimatedHours: number;
     estimatedDays: number;
   }) => apiRequest<any>('/learning/predict', { method: 'POST', body: JSON.stringify(data) }),
+};
+
+export const notificationsAPI = {
+  getAll: async (limit?: number, offset?: number, read?: boolean) => {
+    const params = new URLSearchParams();
+    if (limit) params.append('limit', limit.toString());
+    if (offset) params.append('offset', offset.toString());
+    if (read !== undefined) params.append('read', read.toString());
+    const query = params.toString() ? `?${params.toString()}` : '';
+    return apiRequest<{ success: boolean; data: any[] }>(`/notifications${query}`);
+  },
+  
+  getUnreadCount: async () => {
+    return apiRequest<{ success: boolean; data: { count: number } }>('/notifications/unread');
+  },
+  
+  markAsRead: async (id: string) => {
+    return apiRequest<{ success: boolean; data: any }>(`/notifications/${id}/read`, {
+      method: 'PUT',
+    });
+  },
+  
+  delete: async (id: string) => {
+    return apiRequest<{ success: boolean; message: string }>(`/notifications/${id}`, {
+      method: 'DELETE',
+    });
+  },
+  
+  summarize: async () => {
+    return apiRequest<{ success: boolean; data: { summary: string; notificationIds: string[] } }>('/notifications/summarize', {
+      method: 'POST',
+    });
+  },
+  
+  bulkDelete: async (ids: string[]) => {
+    return apiRequest<{ success: boolean; message: string }>('/notifications/bulk', {
+      method: 'DELETE',
+      body: JSON.stringify({ ids }),
+    });
+  },
+  
+  create: async (data: {
+    type: 'success' | 'error' | 'warning' | 'info';
+    title?: string;
+    message: string;
+    source?: string;
+    action?: string;
+  }) => {
+    return apiRequest<{ success: boolean; data: any }>('/notifications', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  },
 };

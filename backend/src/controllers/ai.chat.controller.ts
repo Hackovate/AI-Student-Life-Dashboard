@@ -638,9 +638,18 @@ export const chat = async (req: Request, res: Response) => {
             if (!existing) throw new Error('Assignment not found');
             const course = await prisma.course.findUnique({ where: { id: existing.courseId } });
             if (!course || course.userId !== userId) throw new Error('Not authorized');
+            // Store details before deletion
+            const deletedAssignment = {
+              title: existing.title,
+              courseName: course.courseName
+            };
             await prisma.assignment.delete({ where: { id: action.data.assignment_id } });
             console.log('Assignment deleted via AI:', action.data.assignment_id);
-            actionResults.push({ type: action.type, success: true });
+            actionResults.push({ 
+              type: action.type, 
+              success: true,
+              data: deletedAssignment
+            });
           } else if (action.type === 'add_exam') {
             // Find course by name or ID
             let course;
@@ -929,7 +938,16 @@ export const chat = async (req: Request, res: Response) => {
               data: updateData
             });
             console.log('Skill updated via AI:', skill.name);
-            actionResults.push({ type: action.type, success: true, data: { skillId: skill.id } });
+            // Fetch updated skill to get latest data
+            const updatedSkill = await prisma.skill.findUnique({ where: { id: skill.id } });
+            actionResults.push({ 
+              type: action.type, 
+              success: true, 
+              data: { 
+                skillId: skill.id,
+                skillName: updatedSkill?.name || skill.name
+              } 
+            });
           } else if (action.type === 'add_milestone') {
             // Find skill by ID or name
             let skill = null;
@@ -1017,7 +1035,16 @@ export const chat = async (req: Request, res: Response) => {
               }
             });
             console.log('Expense added via AI:', action.data.description || action.data.category);
-            actionResults.push({ type: action.type, success: true, data: { financeId: finance.id } });
+            actionResults.push({ 
+              type: action.type, 
+              success: true, 
+              data: { 
+                financeId: finance.id,
+                amount: action.data.amount,
+                category: action.data.category || 'Other',
+                description: action.data.description || null
+              } 
+            });
           } else if (action.type === 'add_income') {
             console.log('Processing add_income action:', JSON.stringify(action.data, null, 2));
             const finance = await prisma.finance.create({
@@ -1033,7 +1060,16 @@ export const chat = async (req: Request, res: Response) => {
               }
             });
             console.log('Income added via AI:', action.data.description || action.data.category);
-            actionResults.push({ type: action.type, success: true, data: { financeId: finance.id } });
+            actionResults.push({ 
+              type: action.type, 
+              success: true, 
+              data: { 
+                financeId: finance.id,
+                amount: action.data.amount,
+                category: action.data.category || 'Other',
+                description: action.data.description || null
+              } 
+            });
           } else if (action.type === 'update_expense') {
             console.log('Processing update_expense action:', JSON.stringify(action.data, null, 2));
             // Find finance by ID or description
@@ -1065,7 +1101,18 @@ export const chat = async (req: Request, res: Response) => {
             if (action.data.date) updateData.date = new Date(action.data.date);
             await prisma.finance.update({ where: { id: finance.id }, data: updateData });
             console.log('Expense updated via AI:', finance.id);
-            actionResults.push({ type: action.type, success: true, data: { financeId: finance.id } });
+            // Fetch updated finance to get latest data
+            const updatedFinance = await prisma.finance.findUnique({ where: { id: finance.id } });
+            actionResults.push({ 
+              type: action.type, 
+              success: true, 
+              data: { 
+                financeId: finance.id,
+                amount: updatedFinance?.amount || action.data.amount,
+                category: updatedFinance?.category || action.data.category,
+                description: updatedFinance?.description || action.data.description
+              } 
+            });
           } else if (action.type === 'update_income') {
             console.log('Processing update_income action:', JSON.stringify(action.data, null, 2));
             // Find finance by ID or description
@@ -1097,7 +1144,18 @@ export const chat = async (req: Request, res: Response) => {
             if (action.data.date) updateData.date = new Date(action.data.date);
             await prisma.finance.update({ where: { id: finance.id }, data: updateData });
             console.log('Income updated via AI:', finance.id);
-            actionResults.push({ type: action.type, success: true, data: { financeId: finance.id } });
+            // Fetch updated finance to get latest data
+            const updatedFinance = await prisma.finance.findUnique({ where: { id: finance.id } });
+            actionResults.push({ 
+              type: action.type, 
+              success: true, 
+              data: { 
+                financeId: finance.id,
+                amount: updatedFinance?.amount || action.data.amount,
+                category: updatedFinance?.category || action.data.category,
+                description: updatedFinance?.description || action.data.description
+              } 
+            });
           } else if (action.type === 'add_savings_goal') {
             console.log('Processing add_savings_goal action:', JSON.stringify(action.data, null, 2));
             const goal = await prisma.savingsGoal.create({
@@ -1113,7 +1171,16 @@ export const chat = async (req: Request, res: Response) => {
               }
             });
             console.log('Savings goal added via AI:', action.data.title);
-            actionResults.push({ type: action.type, success: true, data: { goalId: goal.id, goalTitle: goal.title } });
+            actionResults.push({ 
+              type: action.type, 
+              success: true, 
+              data: { 
+                goalId: goal.id, 
+                goalTitle: goal.title,
+                targetAmount: goal.targetAmount,
+                category: goal.category
+              } 
+            });
           } else if (action.type === 'update_savings_goal') {
             console.log('Processing update_savings_goal action:', JSON.stringify(action.data, null, 2));
             let goal = null;
@@ -1136,7 +1203,17 @@ export const chat = async (req: Request, res: Response) => {
             if (action.data.status) updateData.status = action.data.status;
             await prisma.savingsGoal.update({ where: { id: goal.id }, data: updateData });
             console.log('Savings goal updated via AI:', goal.title);
-            actionResults.push({ type: action.type, success: true, data: { goalId: goal.id } });
+            // Fetch updated goal to get latest data
+            const updatedGoal = await prisma.savingsGoal.findUnique({ where: { id: goal.id } });
+            actionResults.push({ 
+              type: action.type, 
+              success: true, 
+              data: { 
+                goalId: goal.id,
+                goalTitle: updatedGoal?.title || goal.title,
+                targetAmount: updatedGoal?.targetAmount || action.data.targetAmount
+              } 
+            });
           } else if (action.type === 'delete_finance') {
             console.log('Processing delete_finance action:', JSON.stringify(action.data, null, 2));
             // Find finance by ID or description
@@ -1160,9 +1237,20 @@ export const chat = async (req: Request, res: Response) => {
               actionResults.push({ type: action.type, success: false, error: 'Finance record not found' });
               continue;
             }
+            // Store details before deletion
+            const deletedFinance = {
+              amount: finance.amount,
+              category: finance.category,
+              description: finance.description,
+              type: finance.type
+            };
             await prisma.finance.delete({ where: { id: finance.id } });
             console.log('Finance record deleted via AI:', finance.id);
-            actionResults.push({ type: action.type, success: true });
+            actionResults.push({ 
+              type: action.type, 
+              success: true,
+              data: deletedFinance
+            });
           } else if (action.type === 'add_journal') {
             console.log('Processing add_journal action:', JSON.stringify(action.data, null, 2));
             const journal = await prisma.journal.create({
@@ -1176,7 +1264,15 @@ export const chat = async (req: Request, res: Response) => {
               }
             });
             console.log('Journal entry added via AI:', action.data.title);
-            actionResults.push({ type: action.type, success: true, data: { journalId: journal.id } });
+            actionResults.push({ 
+              type: action.type, 
+              success: true, 
+              data: { 
+                journalId: journal.id,
+                title: journal.title,
+                mood: journal.mood
+              } 
+            });
           } else if (action.type === 'update_journal') {
             console.log('Processing update_journal action:', JSON.stringify(action.data, null, 2));
             const journal = await prisma.journal.findFirst({
@@ -1193,7 +1289,17 @@ export const chat = async (req: Request, res: Response) => {
             if (action.data.tags) updateData.tags = action.data.tags;
             await prisma.journal.update({ where: { id: journal.id }, data: updateData });
             console.log('Journal entry updated via AI:', journal.title);
-            actionResults.push({ type: action.type, success: true, data: { journalId: journal.id } });
+            // Fetch updated journal to get latest data
+            const updatedJournal = await prisma.journal.findUnique({ where: { id: journal.id } });
+            actionResults.push({ 
+              type: action.type, 
+              success: true, 
+              data: { 
+                journalId: journal.id,
+                title: updatedJournal?.title || journal.title,
+                mood: updatedJournal?.mood || journal.mood
+              } 
+            });
           } else if (action.type === 'delete_journal') {
             console.log('Processing delete_journal action:', JSON.stringify(action.data, null, 2));
             const journal = await prisma.journal.findFirst({
@@ -1203,9 +1309,18 @@ export const chat = async (req: Request, res: Response) => {
               console.error('Journal entry not found for delete:', action.data);
               continue;
             }
+            // Store details before deletion
+            const deletedJournal = {
+              title: journal.title,
+              mood: journal.mood
+            };
             await prisma.journal.delete({ where: { id: journal.id } });
             console.log('Journal entry deleted via AI:', journal.id);
-            actionResults.push({ type: action.type, success: true });
+            actionResults.push({ 
+              type: action.type, 
+              success: true,
+              data: deletedJournal
+            });
           } else if (action.type === 'add_lifestyle') {
             console.log('Processing add_lifestyle action:', JSON.stringify(action.data, null, 2));
             const lifestyle = await prisma.lifestyle.create({
@@ -1221,7 +1336,16 @@ export const chat = async (req: Request, res: Response) => {
               }
             });
             console.log('Lifestyle record added via AI');
-            actionResults.push({ type: action.type, success: true, data: { lifestyleId: lifestyle.id } });
+            actionResults.push({ 
+              type: action.type, 
+              success: true, 
+              data: { 
+                lifestyleId: lifestyle.id,
+                sleepHours: lifestyle.sleepHours,
+                exerciseMinutes: lifestyle.exerciseMinutes,
+                mealQuality: lifestyle.mealQuality
+              } 
+            });
           } else if (action.type === 'update_lifestyle') {
             console.log('Processing update_lifestyle action:', JSON.stringify(action.data, null, 2));
             const lifestyle = await prisma.lifestyle.findFirst({
@@ -1240,7 +1364,18 @@ export const chat = async (req: Request, res: Response) => {
             if (action.data.notes !== undefined) updateData.notes = action.data.notes;
             await prisma.lifestyle.update({ where: { id: lifestyle.id }, data: updateData });
             console.log('Lifestyle record updated via AI');
-            actionResults.push({ type: action.type, success: true, data: { lifestyleId: lifestyle.id } });
+            // Fetch updated lifestyle to get latest data
+            const updatedLifestyle = await prisma.lifestyle.findUnique({ where: { id: lifestyle.id } });
+            actionResults.push({ 
+              type: action.type, 
+              success: true, 
+              data: { 
+                lifestyleId: lifestyle.id,
+                sleepHours: updatedLifestyle?.sleepHours || lifestyle.sleepHours,
+                exerciseMinutes: updatedLifestyle?.exerciseMinutes || lifestyle.exerciseMinutes,
+                mealQuality: updatedLifestyle?.mealQuality || lifestyle.mealQuality
+              } 
+            });
           } else if (action.type === 'delete_lifestyle') {
             console.log('Processing delete_lifestyle action:', JSON.stringify(action.data, null, 2));
             const lifestyle = await prisma.lifestyle.findFirst({
@@ -1250,9 +1385,19 @@ export const chat = async (req: Request, res: Response) => {
               console.error('Lifestyle record not found for delete:', action.data);
               continue;
             }
+            // Store details before deletion
+            const deletedLifestyle = {
+              sleepHours: lifestyle.sleepHours,
+              exerciseMinutes: lifestyle.exerciseMinutes,
+              mealQuality: lifestyle.mealQuality
+            };
             await prisma.lifestyle.delete({ where: { id: lifestyle.id } });
             console.log('Lifestyle record deleted via AI:', lifestyle.id);
-            actionResults.push({ type: action.type, success: true });
+            actionResults.push({ 
+              type: action.type, 
+              success: true,
+              data: deletedLifestyle
+            });
           } else if (action.type === 'add_habit') {
             console.log('Processing add_habit action:', JSON.stringify(action.data, null, 2));
             const habit = await prisma.habit.create({
@@ -1286,7 +1431,16 @@ export const chat = async (req: Request, res: Response) => {
             if (action.data.icon) updateData.icon = action.data.icon;
             await prisma.habit.update({ where: { id: habit.id }, data: updateData });
             console.log('Habit updated via AI:', habit.name);
-            actionResults.push({ type: action.type, success: true, data: { habitId: habit.id } });
+            // Fetch updated habit to get latest data
+            const updatedHabit = await prisma.habit.findUnique({ where: { id: habit.id } });
+            actionResults.push({ 
+              type: action.type, 
+              success: true, 
+              data: { 
+                habitId: habit.id,
+                habitName: updatedHabit?.name || habit.name
+              } 
+            });
           } else if (action.type === 'delete_habit') {
             console.log('Processing delete_habit action:', JSON.stringify(action.data, null, 2));
             const habit = await prisma.habit.findFirst({
@@ -1296,9 +1450,17 @@ export const chat = async (req: Request, res: Response) => {
               console.error('Habit not found for delete:', action.data);
               continue;
             }
+            // Store details before deletion
+            const deletedHabit = {
+              habitName: habit.name
+            };
             await prisma.habit.delete({ where: { id: habit.id } });
             console.log('Habit deleted via AI:', habit.id);
-            actionResults.push({ type: action.type, success: true });
+            actionResults.push({ 
+              type: action.type, 
+              success: true,
+              data: deletedHabit
+            });
           } else if (action.type === 'toggle_habit') {
             console.log('Processing toggle_habit action:', JSON.stringify(action.data, null, 2));
             const habit = await prisma.habit.findFirst({
@@ -1352,7 +1514,15 @@ export const chat = async (req: Request, res: Response) => {
               }
             });
             console.log('Habit toggled via AI:', habit.name, newCompleted ? 'completed' : 'incomplete');
-            actionResults.push({ type: action.type, success: true, data: { habitId: habit.id, completed: newCompleted } });
+            actionResults.push({ 
+              type: action.type, 
+              success: true, 
+              data: { 
+                habitId: habit.id, 
+                habitName: habit.name,
+                completed: newCompleted 
+              } 
+            });
           }
         } catch (error: any) {
           console.error(`Error processing action ${action.type}:`, error);

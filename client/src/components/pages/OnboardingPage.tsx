@@ -253,12 +253,12 @@ export function OnboardingPage() {
         return (
           <div className="space-y-6">
             <div>
-              <Label htmlFor="educationLevel">Education Level *</Label>
+              <Label htmlFor="educationLevel" className="text-base font-semibold text-foreground mb-2 block">Education Level *</Label>
               <Select
                 value={formData.educationLevel}
                 onValueChange={(value) => setFormData({ ...formData, educationLevel: value })}
               >
-                <SelectTrigger>
+                <SelectTrigger className="h-11 border-border bg-background focus:ring-2 focus:ring-primary/20 focus:border-primary/50">
                   <SelectValue placeholder="Select your education level" />
                 </SelectTrigger>
                 <SelectContent>
@@ -273,12 +273,12 @@ export function OnboardingPage() {
             {formData.educationLevel === 'school' && (
               <>
                 <div>
-                  <Label htmlFor="class">Class *</Label>
+                  <Label htmlFor="class" className="text-base font-semibold text-foreground mb-2 block">Class *</Label>
                   <Select
                     value={formData.class}
                     onValueChange={(value) => setFormData({ ...formData, class: value, group: '' })}
                   >
-                    <SelectTrigger>
+                    <SelectTrigger className="h-11 border-border bg-background focus:ring-2 focus:ring-primary/20 focus:border-primary/50">
                       <SelectValue placeholder="Select class" />
                     </SelectTrigger>
                     <SelectContent>
@@ -290,12 +290,12 @@ export function OnboardingPage() {
                 </div>
                 {(parseInt(formData.class) === 9 || parseInt(formData.class) === 10) && (
                   <div>
-                    <Label htmlFor="group">Group *</Label>
+                    <Label htmlFor="group" className="text-base font-semibold text-foreground mb-2 block">Group *</Label>
                     <Select
                       value={formData.group}
                       onValueChange={(value) => setFormData({ ...formData, group: value })}
                     >
-                      <SelectTrigger>
+                      <SelectTrigger className="h-11 border-border bg-background focus:ring-2 focus:ring-primary/20 focus:border-primary/50">
                         <SelectValue placeholder="Select group" />
                       </SelectTrigger>
                       <SelectContent>
@@ -307,12 +307,12 @@ export function OnboardingPage() {
                   </div>
                 )}
                 <div>
-                  <Label htmlFor="medium">Medium (Optional)</Label>
+                  <Label htmlFor="medium" className="text-base font-semibold text-foreground mb-2 block">Medium (Optional)</Label>
                   <Select
                     value={formData.medium}
                     onValueChange={(value) => setFormData({ ...formData, medium: value })}
                   >
-                    <SelectTrigger>
+                    <SelectTrigger className="h-11 border-border bg-background focus:ring-2 focus:ring-primary/20 focus:border-primary/50">
                       <SelectValue placeholder="Select medium" />
                     </SelectTrigger>
                     <SelectContent>
@@ -327,12 +327,12 @@ export function OnboardingPage() {
             {formData.educationLevel === 'college' && (
               <>
                 <div>
-                  <Label htmlFor="year">Year *</Label>
+                  <Label htmlFor="year" className="text-base font-semibold text-foreground mb-2 block">Year *</Label>
                   <Select
                     value={formData.year}
                     onValueChange={(value) => setFormData({ ...formData, year: value })}
                   >
-                    <SelectTrigger>
+                    <SelectTrigger className="h-11 border-border bg-background focus:ring-2 focus:ring-primary/20 focus:border-primary/50">
                       <SelectValue placeholder="Select year" />
                     </SelectTrigger>
                     <SelectContent>
@@ -342,12 +342,12 @@ export function OnboardingPage() {
                   </Select>
                 </div>
                 <div>
-                  <Label htmlFor="group">Group *</Label>
+                  <Label htmlFor="group" className="text-base font-semibold text-foreground mb-2 block">Group *</Label>
                   <Select
                     value={formData.group}
                     onValueChange={(value) => setFormData({ ...formData, group: value })}
                   >
-                    <SelectTrigger>
+                    <SelectTrigger className="h-11 border-border bg-background focus:ring-2 focus:ring-primary/20 focus:border-primary/50">
                       <SelectValue placeholder="Select group" />
                     </SelectTrigger>
                     <SelectContent>
@@ -358,12 +358,12 @@ export function OnboardingPage() {
                   </Select>
                 </div>
                 <div>
-                  <Label htmlFor="medium">Medium (Optional)</Label>
+                  <Label htmlFor="medium" className="text-base font-semibold text-foreground mb-2 block">Medium (Optional)</Label>
                   <Select
                     value={formData.medium}
                     onValueChange={(value) => setFormData({ ...formData, medium: value })}
                   >
-                    <SelectTrigger>
+                    <SelectTrigger className="h-11 border-border bg-background focus:ring-2 focus:ring-primary/20 focus:border-primary/50">
                       <SelectValue placeholder="Select medium" />
                     </SelectTrigger>
                     <SelectContent>
@@ -378,12 +378,12 @@ export function OnboardingPage() {
             {formData.educationLevel === 'university' && (
               <>
                 <div>
-                  <Label htmlFor="year">Year *</Label>
+                  <Label htmlFor="year" className="text-base font-semibold text-foreground mb-2 block">Year *</Label>
                   <Select
                     value={formData.year}
                     onValueChange={(value) => setFormData({ ...formData, year: value })}
                   >
-                    <SelectTrigger>
+                    <SelectTrigger className="h-11 border-border bg-background focus:ring-2 focus:ring-primary/20 focus:border-primary/50">
                       <SelectValue placeholder="Select year" />
                     </SelectTrigger>
                     <SelectContent>
@@ -394,31 +394,34 @@ export function OnboardingPage() {
                   </Select>
                 </div>
                 <div>
-                  <Label htmlFor="major">Major/Department *</Label>
+                  <Label htmlFor="major" className="text-base font-semibold text-foreground mb-2 block">Major/Department *</Label>
                   <Input
                     id="major"
                     placeholder="e.g., Computer Science"
                     value={formData.major}
                     onChange={(e) => setFormData({ ...formData, major: e.target.value })}
+                    className="h-11 border-border bg-background focus:ring-2 focus:ring-primary/20 focus:border-primary/50"
                     required
                   />
                 </div>
                 <div>
-                  <Label htmlFor="department">Department (Optional)</Label>
+                  <Label htmlFor="department" className="text-base font-semibold text-foreground mb-2 block">Department (Optional)</Label>
                   <Input
                     id="department"
                     placeholder="e.g., CSE Department"
                     value={formData.department}
                     onChange={(e) => setFormData({ ...formData, department: e.target.value })}
+                    className="h-11 border-border bg-background focus:ring-2 focus:ring-primary/20 focus:border-primary/50"
                   />
                 </div>
                 <div>
-                  <Label htmlFor="semester">Semester (Optional)</Label>
+                  <Label htmlFor="semester" className="text-base font-semibold text-foreground mb-2 block">Semester (Optional)</Label>
                   <Input
                     id="semester"
                     placeholder="e.g., Fall 2024"
                     value={formData.semester}
                     onChange={(e) => setFormData({ ...formData, semester: e.target.value })}
+                    className="h-11 border-border bg-background focus:ring-2 focus:ring-primary/20 focus:border-primary/50"
                   />
                 </div>
               </>
@@ -427,12 +430,12 @@ export function OnboardingPage() {
             {formData.educationLevel === 'graduate' && (
               <>
                 <div>
-                  <Label htmlFor="program">Program *</Label>
+                  <Label htmlFor="program" className="text-base font-semibold text-foreground mb-2 block">Program *</Label>
                   <Select
                     value={formData.program}
                     onValueChange={(value) => setFormData({ ...formData, program: value })}
                   >
-                    <SelectTrigger>
+                    <SelectTrigger className="h-11 border-border bg-background focus:ring-2 focus:ring-primary/20 focus:border-primary/50">
                       <SelectValue placeholder="Select program" />
                     </SelectTrigger>
                     <SelectContent>
@@ -442,57 +445,62 @@ export function OnboardingPage() {
                   </Select>
                 </div>
                 <div>
-                  <Label htmlFor="major">Major/Field of Study *</Label>
+                  <Label htmlFor="major" className="text-base font-semibold text-foreground mb-2 block">Major/Field of Study *</Label>
                   <Input
                     id="major"
                     placeholder="e.g., Computer Science"
                     value={formData.major}
                     onChange={(e) => setFormData({ ...formData, major: e.target.value })}
+                    className="h-11 border-border bg-background focus:ring-2 focus:ring-primary/20 focus:border-primary/50"
                     required
                   />
                 </div>
                 <div>
-                  <Label htmlFor="researchArea">Research Area (Optional)</Label>
+                  <Label htmlFor="researchArea" className="text-base font-semibold text-foreground mb-2 block">Research Area (Optional)</Label>
                   <Input
                     id="researchArea"
                     placeholder="e.g., Machine Learning"
                     value={formData.researchArea}
                     onChange={(e) => setFormData({ ...formData, researchArea: e.target.value })}
+                    className="h-11 border-border bg-background focus:ring-2 focus:ring-primary/20 focus:border-primary/50"
                   />
                 </div>
               </>
             )}
 
             <div>
-              <Label htmlFor="institution">Institution Name *</Label>
+              <Label htmlFor="institution" className="text-base font-semibold text-foreground mb-2 block">Institution Name *</Label>
               <Input
                 id="institution"
                 placeholder="e.g., Dhaka University"
                 value={formData.institution}
                 onChange={(e) => setFormData({ ...formData, institution: e.target.value })}
+                className="h-11 border-border bg-background focus:ring-2 focus:ring-primary/20 focus:border-primary/50"
                 required
               />
             </div>
 
             {(formData.educationLevel === 'school' || formData.educationLevel === 'college') && (
               <div>
-                <Label htmlFor="board">Board (Optional)</Label>
+                <Label htmlFor="board" className="text-base font-semibold text-foreground mb-2 block">Board (Optional)</Label>
                 <Input
                   id="board"
                   placeholder="e.g., Dhaka, Chittagong, Rajshahi"
                   value={formData.board}
                   onChange={(e) => setFormData({ ...formData, board: e.target.value })}
+                  className="h-11 border-border bg-background focus:ring-2 focus:ring-primary/20 focus:border-primary/50"
                 />
               </div>
             )}
 
             <div>
-              <Label htmlFor="expectedGraduation">Expected Graduation Date (Optional)</Label>
+              <Label htmlFor="expectedGraduation" className="text-base font-semibold text-foreground mb-2 block">Expected Graduation Date (Optional)</Label>
               <Input
                 id="expectedGraduation"
                 type="date"
                 value={formData.expectedGraduation}
                 onChange={(e) => setFormData({ ...formData, expectedGraduation: e.target.value })}
+                className="h-11 border-border bg-background focus:ring-2 focus:ring-primary/20 focus:border-primary/50"
               />
             </div>
           </div>
@@ -512,15 +520,16 @@ export function OnboardingPage() {
                   </p>
                 ) : (
                   formData.subjects.map((subject, index) => (
-                    <Card key={index} className="p-4">
+                    <Card key={index} className="p-5 border-border bg-card shadow-md hover:shadow-lg transition-shadow">
                       <div className="flex items-center justify-between">
                         <div className="flex-1">
-                          <p className="font-medium">{subject}</p>
+                          <p className="font-semibold text-foreground">{subject}</p>
                         </div>
                         <Button
                           variant="ghost"
                           size="sm"
                           onClick={() => removeSubject(index)}
+                          className="text-muted-foreground hover:text-destructive hover:bg-destructive/10"
                         >
                           Remove
                         </Button>
@@ -530,10 +539,10 @@ export function OnboardingPage() {
                 )}
               </div>
 
-              <div className="border-t pt-4 space-y-4">
+              <div className="border-t border-border pt-6 space-y-4">
                 <div>
-                  <Label htmlFor="subject-name">Subject Name</Label>
-                  <div className="flex gap-2">
+                  <Label htmlFor="subject-name" className="text-base font-semibold text-foreground mb-2 block">Subject Name</Label>
+                  <div className="flex gap-3">
                     <Input
                       id="subject-name"
                       placeholder="e.g., Mathematics, Physics, Chemistry"
@@ -545,8 +554,13 @@ export function OnboardingPage() {
                           addSubject();
                         }
                       }}
+                      className="h-11 border-border bg-background focus:ring-2 focus:ring-primary/20 focus:border-primary/50"
                     />
-                    <Button type="button" onClick={addSubject} variant="outline">
+                    <Button 
+                      type="button" 
+                      onClick={addSubject} 
+                      className="h-11 px-6 bg-primary hover:bg-primary/90 text-primary-foreground shadow-md shadow-primary/20 hover:shadow-lg hover:shadow-primary/30 transition-all"
+                    >
                       Add
                     </Button>
                   </div>
@@ -567,11 +581,11 @@ export function OnboardingPage() {
                   </p>
                 ) : (
                   formData.courses.map((course, index) => (
-                    <Card key={index} className="p-4">
+                    <Card key={index} className="p-5 border-border bg-card shadow-md hover:shadow-lg transition-shadow">
                       <div className="flex items-center justify-between">
                         <div className="flex-1">
-                          <p className="font-medium">{course.name}</p>
-                          <p className="text-sm text-muted-foreground">
+                          <p className="font-semibold text-foreground">{course.name}</p>
+                          <p className="text-sm text-muted-foreground mt-1">
                             {course.code} • {course.credits} credits
                           </p>
                         </div>
@@ -579,6 +593,7 @@ export function OnboardingPage() {
                           variant="ghost"
                           size="sm"
                           onClick={() => removeCourse(index)}
+                          className="text-muted-foreground hover:text-destructive hover:bg-destructive/10"
                         >
                           Remove
                         </Button>
@@ -588,38 +603,45 @@ export function OnboardingPage() {
                 )}
               </div>
 
-              <div className="border-t pt-4 space-y-4">
+              <div className="border-t border-border pt-6 space-y-4">
                 <div className="grid grid-cols-2 gap-4">
                   <div>
-                    <Label htmlFor="course-name">Course Name</Label>
+                    <Label htmlFor="course-name" className="text-base font-semibold text-foreground mb-2 block">Course Name</Label>
                     <Input
                       id="course-name"
                       placeholder="e.g., Data Structures"
                       value={newCourse.name}
                       onChange={(e) => setNewCourse({ ...newCourse, name: e.target.value })}
+                      className="h-11 border-border bg-background focus:ring-2 focus:ring-primary/20 focus:border-primary/50"
                     />
                   </div>
                   <div>
-                    <Label htmlFor="course-code">Course Code</Label>
+                    <Label htmlFor="course-code" className="text-base font-semibold text-foreground mb-2 block">Course Code</Label>
                     <Input
                       id="course-code"
                       placeholder="e.g., CS201"
                       value={newCourse.code}
                       onChange={(e) => setNewCourse({ ...newCourse, code: e.target.value })}
+                      className="h-11 border-border bg-background focus:ring-2 focus:ring-primary/20 focus:border-primary/50"
                     />
                   </div>
                 </div>
                 <div>
-                  <Label htmlFor="course-credits">Credits</Label>
+                  <Label htmlFor="course-credits" className="text-base font-semibold text-foreground mb-2 block">Credits</Label>
                   <Input
                     id="course-credits"
                     type="number"
                     placeholder="3"
                     value={newCourse.credits}
                     onChange={(e) => setNewCourse({ ...newCourse, credits: e.target.value })}
+                    className="h-11 border-border bg-background focus:ring-2 focus:ring-primary/20 focus:border-primary/50"
                   />
                 </div>
-                <Button type="button" onClick={addCourse} variant="outline">
+                <Button 
+                  type="button" 
+                  onClick={addCourse} 
+                  className="h-11 px-6 bg-primary hover:bg-primary/90 text-primary-foreground shadow-md shadow-primary/20 hover:shadow-lg hover:shadow-primary/30 transition-all"
+                >
                   Add Course
                 </Button>
               </div>
@@ -639,11 +661,11 @@ export function OnboardingPage() {
                 </p>
               ) : (
                 formData.skills.map((skill, index) => (
-                  <Card key={index} className="p-4">
+                  <Card key={index} className="p-5 border-border bg-card shadow-md hover:shadow-lg transition-shadow">
                     <div className="flex items-center justify-between">
                       <div className="flex-1">
-                        <p className="font-medium">{skill.name}</p>
-                        <p className="text-sm text-muted-foreground">
+                        <p className="font-semibold text-foreground">{skill.name}</p>
+                        <p className="text-sm text-muted-foreground mt-1">
                           {skill.category} • {skill.level}
                         </p>
                       </div>
@@ -651,6 +673,7 @@ export function OnboardingPage() {
                         variant="ghost"
                         size="sm"
                         onClick={() => removeSkill(index)}
+                        className="text-muted-foreground hover:text-destructive hover:bg-destructive/10"
                       >
                         Remove
                       </Button>
@@ -660,24 +683,25 @@ export function OnboardingPage() {
               )}
             </div>
 
-            <div className="border-t pt-4 space-y-4">
+            <div className="border-t border-border pt-6 space-y-4">
               <div>
-                <Label htmlFor="skill-name">Skill Name</Label>
+                <Label htmlFor="skill-name" className="text-base font-semibold text-foreground mb-2 block">Skill Name</Label>
                 <Input
                   id="skill-name"
                   placeholder="e.g., Web Development"
                   value={newSkill.name}
                   onChange={(e) => setNewSkill({ ...newSkill, name: e.target.value })}
+                  className="h-11 border-border bg-background focus:ring-2 focus:ring-primary/20 focus:border-primary/50"
                 />
               </div>
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <Label htmlFor="skill-category">Category</Label>
+                  <Label htmlFor="skill-category" className="text-base font-semibold text-foreground mb-2 block">Category</Label>
                   <Select
                     value={newSkill.category}
                     onValueChange={(value) => setNewSkill({ ...newSkill, category: value })}
                   >
-                    <SelectTrigger>
+                    <SelectTrigger className="h-11 border-border bg-background focus:ring-2 focus:ring-primary/20 focus:border-primary/50">
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
@@ -690,12 +714,12 @@ export function OnboardingPage() {
                   </Select>
                 </div>
                 <div>
-                  <Label htmlFor="skill-level">Current Level</Label>
+                  <Label htmlFor="skill-level" className="text-base font-semibold text-foreground mb-2 block">Current Level</Label>
                   <Select
                     value={newSkill.level}
                     onValueChange={(value) => setNewSkill({ ...newSkill, level: value })}
                   >
-                    <SelectTrigger>
+                    <SelectTrigger className="h-11 border-border bg-background focus:ring-2 focus:ring-primary/20 focus:border-primary/50">
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
@@ -706,7 +730,11 @@ export function OnboardingPage() {
                   </Select>
                 </div>
               </div>
-              <Button type="button" onClick={addSkill} variant="outline">
+              <Button 
+                type="button" 
+                onClick={addSkill} 
+                className="h-11 px-6 bg-primary hover:bg-primary/90 text-primary-foreground shadow-md shadow-primary/20 hover:shadow-lg hover:shadow-primary/30 transition-all"
+              >
                 Add Skill
               </Button>
             </div>
@@ -716,18 +744,19 @@ export function OnboardingPage() {
       case 4:
         return (
           <div className="space-y-6">
-            <p className="text-muted-foreground">Set up your financial baseline (optional)</p>
+            <p className="text-muted-foreground text-base">Set up your financial baseline (optional)</p>
             
             <div>
-              <Label htmlFor="monthly-budget">Monthly Budget</Label>
+              <Label htmlFor="monthly-budget" className="text-base font-semibold text-foreground mb-2 block">Monthly Budget</Label>
               <Input
                 id="monthly-budget"
                 type="number"
                 placeholder="0"
                 value={formData.monthlyBudget}
                 onChange={(e) => setFormData({ ...formData, monthlyBudget: e.target.value })}
+                className="h-11 border-border bg-background focus:ring-2 focus:ring-primary/20 focus:border-primary/50"
               />
-              <p className="text-xs text-muted-foreground mt-1">
+              <p className="text-sm text-muted-foreground mt-2">
                 This helps us provide better financial insights
               </p>
             </div>
@@ -737,36 +766,38 @@ export function OnboardingPage() {
       case 5:
         return (
           <div className="space-y-6">
-            <div className="flex items-center gap-2 mb-4">
-              <CheckCircle2 className="w-6 h-6 text-green-500" />
-              <h3 className="text-xl font-semibold">Review Your Information</h3>
+            <div className="flex items-center gap-3 mb-6">
+              <div className="w-10 h-10 rounded-lg bg-primary/10 flex items-center justify-center">
+                <CheckCircle2 className="w-5 h-5 text-primary" />
+              </div>
+              <h3 className="text-2xl font-bold text-foreground">Review Your Information</h3>
             </div>
 
             <div className="space-y-4">
-              <Card className="p-4">
-                <h4 className="font-semibold mb-2">Education</h4>
-                <div className="space-y-1 text-sm text-muted-foreground">
-                  <p><span className="font-medium">Level:</span> {formData.educationLevel.charAt(0).toUpperCase() + formData.educationLevel.slice(1)}</p>
-                  <p><span className="font-medium">Institution:</span> {formData.institution}</p>
-                  {formData.class && <p><span className="font-medium">Class:</span> {formData.class}</p>}
-                  {formData.year && <p><span className="font-medium">Year:</span> {formData.year}</p>}
-                  {formData.group && <p><span className="font-medium">Group:</span> {formData.group}</p>}
-                  {formData.major && <p><span className="font-medium">Major:</span> {formData.major}</p>}
-                  {formData.program && <p><span className="font-medium">Program:</span> {formData.program}</p>}
-                  {formData.department && <p><span className="font-medium">Department:</span> {formData.department}</p>}
-                  {formData.semester && <p><span className="font-medium">Semester:</span> {formData.semester}</p>}
-                  {formData.researchArea && <p><span className="font-medium">Research Area:</span> {formData.researchArea}</p>}
-                  {formData.board && <p><span className="font-medium">Board:</span> {formData.board}</p>}
-                  {formData.medium && <p><span className="font-medium">Medium:</span> {formData.medium}</p>}
+              <Card className="p-6 border-border bg-card shadow-md hover:shadow-lg transition-shadow">
+                <h4 className="font-bold text-lg text-foreground mb-4">Education</h4>
+                <div className="space-y-2 text-sm">
+                  <p className="text-foreground"><span className="font-semibold">Level:</span> <span className="text-muted-foreground">{formData.educationLevel.charAt(0).toUpperCase() + formData.educationLevel.slice(1)}</span></p>
+                  <p className="text-foreground"><span className="font-semibold">Institution:</span> <span className="text-muted-foreground">{formData.institution}</span></p>
+                  {formData.class && <p className="text-foreground"><span className="font-semibold">Class:</span> <span className="text-muted-foreground">{formData.class}</span></p>}
+                  {formData.year && <p className="text-foreground"><span className="font-semibold">Year:</span> <span className="text-muted-foreground">{formData.year}</span></p>}
+                  {formData.group && <p className="text-foreground"><span className="font-semibold">Group:</span> <span className="text-muted-foreground">{formData.group}</span></p>}
+                  {formData.major && <p className="text-foreground"><span className="font-semibold">Major:</span> <span className="text-muted-foreground">{formData.major}</span></p>}
+                  {formData.program && <p className="text-foreground"><span className="font-semibold">Program:</span> <span className="text-muted-foreground">{formData.program}</span></p>}
+                  {formData.department && <p className="text-foreground"><span className="font-semibold">Department:</span> <span className="text-muted-foreground">{formData.department}</span></p>}
+                  {formData.semester && <p className="text-foreground"><span className="font-semibold">Semester:</span> <span className="text-muted-foreground">{formData.semester}</span></p>}
+                  {formData.researchArea && <p className="text-foreground"><span className="font-semibold">Research Area:</span> <span className="text-muted-foreground">{formData.researchArea}</span></p>}
+                  {formData.board && <p className="text-foreground"><span className="font-semibold">Board:</span> <span className="text-muted-foreground">{formData.board}</span></p>}
+                  {formData.medium && <p className="text-foreground"><span className="font-semibold">Medium:</span> <span className="text-muted-foreground">{formData.medium}</span></p>}
                 </div>
               </Card>
 
               {formData.subjects.length > 0 && (
-                <Card className="p-4">
-                  <h4 className="font-semibold mb-2">Subjects ({formData.subjects.length})</h4>
-                  <div className="space-y-1">
+                <Card className="p-6 border-border bg-card shadow-md hover:shadow-lg transition-shadow">
+                  <h4 className="font-bold text-lg text-foreground mb-4">Subjects ({formData.subjects.length})</h4>
+                  <div className="space-y-2">
                     {formData.subjects.map((subject, i) => (
-                      <p key={i} className="text-sm text-muted-foreground">
+                      <p key={i} className="text-sm text-foreground">
                         {subject}
                       </p>
                     ))}
@@ -775,11 +806,11 @@ export function OnboardingPage() {
               )}
 
               {formData.courses.length > 0 && (
-                <Card className="p-4">
-                  <h4 className="font-semibold mb-2">Courses ({formData.courses.length})</h4>
-                  <div className="space-y-1">
+                <Card className="p-6 border-border bg-card shadow-md hover:shadow-lg transition-shadow">
+                  <h4 className="font-bold text-lg text-foreground mb-4">Courses ({formData.courses.length})</h4>
+                  <div className="space-y-2">
                     {formData.courses.map((course, i) => (
-                      <p key={i} className="text-sm text-muted-foreground">
+                      <p key={i} className="text-sm text-foreground">
                         {course.name} ({course.code}) • {course.credits} credits
                       </p>
                     ))}
@@ -788,11 +819,11 @@ export function OnboardingPage() {
               )}
 
               {formData.skills.length > 0 && (
-                <Card className="p-4">
-                  <h4 className="font-semibold mb-2">Skills ({formData.skills.length})</h4>
-                  <div className="space-y-1">
+                <Card className="p-6 border-border bg-card shadow-md hover:shadow-lg transition-shadow">
+                  <h4 className="font-bold text-lg text-foreground mb-4">Skills ({formData.skills.length})</h4>
+                  <div className="space-y-2">
                     {formData.skills.map((skill, i) => (
-                      <p key={i} className="text-sm text-muted-foreground">
+                      <p key={i} className="text-sm text-foreground">
                         {skill.name} ({skill.level})
                       </p>
                     ))}
@@ -801,9 +832,9 @@ export function OnboardingPage() {
               )}
 
               {formData.monthlyBudget && (
-                <Card className="p-4">
-                  <h4 className="font-semibold mb-2">Monthly Budget</h4>
-                  <p className="text-sm text-muted-foreground">
+                <Card className="p-6 border-border bg-card shadow-md hover:shadow-lg transition-shadow">
+                  <h4 className="font-bold text-lg text-foreground mb-2">Monthly Budget</h4>
+                  <p className="text-lg font-semibold text-primary">
                     ৳{parseFloat(formData.monthlyBudget).toLocaleString()}
                   </p>
                 </Card>
@@ -828,33 +859,33 @@ export function OnboardingPage() {
   const stepIcons = [GraduationCap, BookOpen, Target, Wallet, CheckCircle2];
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 via-indigo-50 to-purple-50 dark:from-gray-900 dark:via-gray-800 dark:to-gray-900 flex items-center justify-center p-4">
-      <Card className="w-full max-w-3xl border-border bg-card">
+    <div className="min-h-screen bg-gradient-to-br from-background via-muted/20 to-background flex items-center justify-center p-4">
+      <Card className="w-full max-w-3xl border-border bg-card shadow-md hover:shadow-lg transition-shadow">
         <div className="p-6 md:p-8">
           {/* Header */}
-          <div className="flex items-center gap-3 mb-8">
-            <div className="w-12 h-12 rounded-lg bg-gradient-to-br from-violet-500 to-purple-500 flex items-center justify-center">
-              <Sparkles className="w-6 h-6 text-white" />
+          <div className="flex items-center gap-4 mb-8">
+            <div className="w-14 h-14 rounded-xl bg-gradient-to-br from-primary to-primary/80 flex items-center justify-center shadow-md shadow-primary/20">
+              <Sparkles className="w-7 h-7 text-primary-foreground" />
             </div>
             <div>
-              <h1 className="text-2xl font-bold text-foreground">Welcome to Momentum!</h1>
-              <p className="text-muted-foreground">Let's set up your profile</p>
+              <h1 className="text-3xl md:text-4xl font-bold text-foreground mb-1">Welcome to Momentum!</h1>
+              <p className="text-muted-foreground text-base">Let's set up your profile</p>
             </div>
           </div>
 
           {/* Progress Bar */}
           <div className="mb-8">
-            <div className="flex items-center justify-between mb-2">
-              <span className="text-sm font-medium text-foreground">
+            <div className="flex items-center justify-between mb-3">
+              <span className="text-sm font-semibold text-foreground">
                 Step {currentStep} of {totalSteps}
               </span>
-              <span className="text-sm text-muted-foreground">
+              <span className="text-sm font-medium text-muted-foreground">
                 {Math.round((currentStep / totalSteps) * 100)}%
               </span>
             </div>
-            <div className="w-full bg-muted rounded-full h-2">
+            <div className="w-full bg-muted/50 rounded-full h-3 overflow-hidden">
               <div
-                className="bg-gradient-to-r from-violet-500 to-purple-500 h-2 rounded-full transition-all"
+                className="bg-gradient-to-r from-primary to-primary/80 h-3 rounded-full transition-all duration-300 shadow-sm shadow-primary/20"
                 style={{ width: `${(currentStep / totalSteps) * 100}%` }}
               />
             </div>
@@ -864,9 +895,13 @@ export function OnboardingPage() {
           <div className="flex items-center gap-3 mb-6">
             {(() => {
               const Icon = stepIcons[currentStep - 1];
-              return <Icon className="w-6 h-6 text-violet-600" />;
+              return (
+                <div className="w-10 h-10 rounded-lg bg-primary/10 flex items-center justify-center">
+                  <Icon className="w-5 h-5 text-primary" />
+                </div>
+              );
             })()}
-            <h2 className="text-xl font-semibold text-foreground">
+            <h2 className="text-2xl font-bold text-foreground">
               {stepTitles[currentStep - 1]}
             </h2>
           </div>
@@ -882,6 +917,7 @@ export function OnboardingPage() {
               variant="outline"
               onClick={handleBack}
               disabled={currentStep === 1}
+              className="h-11 px-6 border-border hover:bg-muted disabled:opacity-50 disabled:cursor-not-allowed transition-all"
             >
               <ChevronLeft className="w-4 h-4 mr-2" />
               Back
@@ -891,6 +927,7 @@ export function OnboardingPage() {
               <Button
                 onClick={handleNext}
                 disabled={!isStepValid()}
+                className="h-11 px-6 bg-primary hover:bg-primary/90 text-primary-foreground disabled:opacity-50 disabled:cursor-not-allowed shadow-md shadow-primary/20 hover:shadow-lg hover:shadow-primary/30 transition-all"
               >
                 Next
                 <ChevronRight className="w-4 h-4 ml-2" />
@@ -899,6 +936,7 @@ export function OnboardingPage() {
               <Button
                 onClick={handleSubmit}
                 disabled={loading || !isStepValid()}
+                className="h-11 px-6 bg-primary hover:bg-primary/90 text-primary-foreground disabled:opacity-50 disabled:cursor-not-allowed shadow-md shadow-primary/20 hover:shadow-lg hover:shadow-primary/30 transition-all"
               >
                 {loading ? 'Completing...' : 'Complete Setup'}
               </Button>

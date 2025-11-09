@@ -39,8 +39,8 @@ export function Sidebar({ activeSection, onSectionChange }: SidebarProps) {
   return (
     <div className="w-64 h-screen bg-sidebar border-r border-sidebar-border flex flex-col fixed left-0 top-0 shadow-lg">
       {/* Logo */}
-      <div className="p-4 border-b border-sidebar-border bg-card/50">
-        <img src="/Full Logo.svg" alt="Momentum Logo" className="h-12 w-auto object-contain" />
+      <div className="p-6 border-b border-sidebar-border bg-card/50 flex items-center justify-center">
+        <img src="/Full Logo.svg" alt="Momentum Logo" className="h-20 w-auto object-contain" />
       </div>
 
       {/* Menu Items */}

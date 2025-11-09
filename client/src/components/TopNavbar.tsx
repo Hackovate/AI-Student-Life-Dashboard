@@ -1,4 +1,4 @@
-import { Search, Bell, Sparkles, ChevronDown, LogOut } from 'lucide-react';
+import { Sparkles, ChevronDown, LogOut } from 'lucide-react';
 import { Avatar, AvatarFallback } from './ui/avatar';
 import { Button } from './ui/button';
 import { ThemeToggle } from './theme-toggle';
@@ -11,6 +11,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from './ui/dropdown-menu';
+import { NotificationDropdown } from './NotificationDropdown';
 
 interface TopNavbarProps {
   onNavigateToAssistant?: () => void;
@@ -42,18 +43,6 @@ export function TopNavbar({ onNavigateToAssistant }: TopNavbarProps) {
         <span className="text-sm font-medium text-foreground">{today}</span>
       </div>
 
-      {/* Search Bar */}
-      <div className="flex-1 max-w-md mx-6">
-        <div className="relative">
-          <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-          <input
-            type="text"
-            placeholder="Quick search..."
-            className="w-full pl-10 pr-4 py-2.5 bg-muted/50 border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary/50 text-foreground placeholder:text-muted-foreground transition-all"
-          />
-        </div>
-      </div>
-
       {/* Right Actions */}
       <div className="flex items-center gap-3">
         {/* AI Assistant Button */}
@@ -69,14 +58,7 @@ export function TopNavbar({ onNavigateToAssistant }: TopNavbarProps) {
         <ThemeToggle />
 
         {/* Notifications */}
-        <button 
-          className="relative p-2.5 hover:bg-muted rounded-lg transition-all hover:scale-105"
-          aria-label="View notifications"
-          title="Notifications"
-        >
-          <Bell className="w-5 h-5 text-foreground" />
-          <span className="absolute top-1.5 right-1.5 w-2 h-2 bg-destructive rounded-full ring-2 ring-card"></span>
-        </button>
+        <NotificationDropdown />
 
         {/* Profile */}
         <DropdownMenu>

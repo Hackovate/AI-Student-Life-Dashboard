@@ -235,12 +235,12 @@ export function Lifestyle() {
 
       {/* Wellness Score */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        <Card className="p-6 border-border bg-gradient-to-br from-violet-50 to-purple-50 dark:from-violet-950 dark:to-purple-950 border-violet-200 dark:border-violet-800 shadow-md hover:shadow-lg transition-shadow">
+        <Card className="p-6 border-border bg-card shadow-md hover:shadow-lg transition-shadow">
           <div className="flex items-center justify-between">
             <div className="flex-1">
-              <p className="text-violet-700 dark:text-violet-300 text-sm font-medium mb-1">Overall Wellness Score</p>
+              <p className="text-muted-foreground text-sm font-medium mb-1">Overall Wellness Score</p>
               <p className="text-foreground text-3xl font-bold mb-1">{wellnessScore}</p>
-              <div className="flex items-center gap-1 text-violet-600 dark:text-violet-400 text-xs">
+              <div className="flex items-center gap-1 text-muted-foreground text-xs">
                 <TrendingUp className="w-3 h-3" />
                 <span>Keep it up!</span>
               </div>
@@ -254,7 +254,7 @@ export function Lifestyle() {
                   stroke="currentColor"
                   strokeWidth="4"
                   fill="none"
-                  className="text-violet-200 dark:text-violet-900"
+                  className="text-muted"
                 />
                 <circle
                   cx="32"
@@ -265,11 +265,11 @@ export function Lifestyle() {
                   fill="none"
                   strokeDasharray={`${2 * Math.PI * 28}`}
                   strokeDashoffset={`${2 * Math.PI * 28 * (1 - wellnessScore / 100)}`}
-                  className="text-violet-600 dark:text-violet-400"
+                  className="text-primary"
                 />
               </svg>
               <div className="absolute inset-0 flex items-center justify-center">
-                <span className="text-violet-700 dark:text-violet-300 text-sm font-bold">{wellnessScore}%</span>
+                <span className="text-foreground text-sm font-bold">{wellnessScore}%</span>
               </div>
             </div>
           </div>
@@ -344,7 +344,7 @@ export function Lifestyle() {
 
                 <div className="flex items-center gap-2 mb-4 pb-3 border-b border-border">
                   <span className="text-orange-500 text-lg">🔥</span>
-                  <span className="text-sm text-muted-foreground font-medium">{habit.streak} day streak</span>
+                    <span className="text-sm text-muted-foreground font-medium">{habit.streak} day streak</span>
                 </div>
 
                 <Button

@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { CheckCircle2, Wallet, Plus, TrendingUp, BookOpen, Target } from 'lucide-react';
+import { CheckCircle2, Wallet, Plus, TrendingUp, BookOpen, Target, Loader2, FileText } from 'lucide-react';
 import { StatCard } from '../StatCard';
 import { Card } from '../ui/card';
 import { Button } from '../ui/button';
@@ -18,8 +18,10 @@ import {
   skillsAPI,
   authAPI,
   journalAPI,
+  aiChatAPI,
 } from '../../lib/api';
 import { toast } from 'sonner';
+import { useNotifications } from '../../lib/NotificationContext';
 
 interface DashboardProps {
   onNavigate?: (section: string) => void;
@@ -30,6 +32,7 @@ export function Dashboard({ onNavigate }: DashboardProps = {}) {
     const section = path.replace('/', '');
     onNavigate?.(section);
   };
+  const { fetchNotifications, refreshUnreadCount } = useNotifications();
   const [loading, setLoading] = useState(true);
   const [user, setUser] = useState<any>(null);
   const [tasks, setTasks] = useState<any[]>([]);
@@ -49,6 +52,10 @@ export function Dashboard({ onNavigate }: DashboardProps = {}) {
   const [isTaskModalOpen, setIsTaskModalOpen] = useState(false);
   const [isExpenseModalOpen, setIsExpenseModalOpen] = useState(false);
   const [isJournalModalOpen, setIsJournalModalOpen] = useState(false);
+  
+  // Summary states
+  const [summaryType, setSummaryType] = useState<'daily' | 'monthly'>('daily');
+  const [generatingSummary, setGeneratingSummary] = useState(false);
   
   // Form states
   const [newTask, setNewTask] = useState({
@@ -224,6 +231,29 @@ export function Dashboard({ onNavigate }: DashboardProps = {}) {
       toast.error('Failed to add journal entry');
     }
   };
+
+  const handleGenerateSummary = async () => {
+    setGeneratingSummary(true);
+    try {
+      const response = summaryType === 'daily' 
+        ? await aiChatAPI.generateDailySummary()
+        : await aiChatAPI.generateMonthlySummary();
+      
+      if (response.success) {
+        toast.success(`${summaryType === 'daily' ? 'Daily' : 'Monthly'} summary generated successfully! Check your notifications.`);
+        // Refresh notifications to show the new summary notification
+        await fetchNotifications();
+        await refreshUnreadCount();
+      } else {
+        throw new Error(response.message || 'Failed to generate summary');
+      }
+    } catch (error: any) {
+      console.error(`Error generating ${summaryType} summary:`, error);
+      toast.error(error.message || `Failed to generate ${summaryType} summary. Please try again.`);
+    } finally {
+      setGeneratingSummary(false);
+    }
+  };
   
   const userName = user?.firstName || user?.email?.split('@')[0] || "Student";
   const currentHour = currentTime.getHours();
@@ -293,15 +323,36 @@ export function Dashboard({ onNavigate }: DashboardProps = {}) {
     }
   ];
 
-  // Get upcoming tasks (not done)
+  // Get upcoming tasks (not done) - from daily planner
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  
   const upcomingTasks = tasks
-    .filter(t => t.status !== 'completed' && t.status !== 'done')
+    .filter(t => {
+      // Filter out completed tasks
+      if (t.status === 'completed' || t.status === 'done') return false;
+      
+      // Include tasks with no due date or due date in the future/today
+      if (!t.dueDate) return true;
+      const dueDate = new Date(t.dueDate);
+      dueDate.setHours(0, 0, 0, 0);
+      return dueDate >= today;
+    })
     .sort((a, b) => {
+      // Sort by priority first (high priority first)
       if (a.priority === 'high' && b.priority !== 'high') return -1;
       if (a.priority !== 'high' && b.priority === 'high') return 1;
+      
+      // Then sort by due date (earliest first)
+      if (a.dueDate && b.dueDate) {
+        return new Date(a.dueDate).getTime() - new Date(b.dueDate).getTime();
+      }
+      if (a.dueDate) return -1;
+      if (b.dueDate) return 1;
+      
       return 0;
     })
-    .slice(0, 5);
+    .slice(0, 3); // Show only 3 tasks
 
   const getPriorityColor = (priority: string) => {
     switch (priority) {
@@ -327,12 +378,39 @@ export function Dashboard({ onNavigate }: DashboardProps = {}) {
   return (
     <div className="space-y-6">
       {/* Greeting */}
-      <div className="mb-6">
-        <h1 className="text-foreground text-3xl md:text-4xl font-bold mb-2">
-          {greeting}, {userName} 
-          <span className="ml-2">☀️</span>
-        </h1>
-        <p className="text-muted-foreground text-base">Here's what's happening with your student life today</p>
+      <div className="mb-6 flex items-start justify-between">
+        <div>
+          <h1 className="text-foreground text-3xl md:text-4xl font-bold mb-2">
+            {greeting}, {userName} 
+            <span className="ml-2">☀️</span>
+          </h1>
+          <p className="text-muted-foreground text-base">Here's what's happening with your student life today</p>
+        </div>
+        <div className="flex items-center gap-3">
+          <Select value={summaryType} onValueChange={(value: 'daily' | 'monthly') => setSummaryType(value)}>
+            <SelectTrigger className="w-[140px]">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="daily">Daily</SelectItem>
+              <SelectItem value="monthly">Monthly</SelectItem>
+            </SelectContent>
+          </Select>
+          <Button
+            variant="outline"
+            onClick={handleGenerateSummary}
+            disabled={generatingSummary}
+            className="gap-2 hover:bg-primary/5 hover:border-primary/50 transition-all"
+            title={`Generate ${summaryType === 'daily' ? 'Daily' : 'Monthly'} Summary`}
+          >
+            {generatingSummary ? (
+              <Loader2 className="w-4 h-4 animate-spin" />
+            ) : (
+              <FileText className="w-4 h-4" />
+            )}
+            {generatingSummary ? 'Generating...' : 'Generate Summary'}
+          </Button>
+        </div>
       </div>
 
       {/* Stats Grid */}
@@ -401,21 +479,43 @@ export function Dashboard({ onNavigate }: DashboardProps = {}) {
               </Button>
             </div>
           ) : (
-            <div className="space-y-3">
+            <div className="space-y-2">
               {upcomingTasks.map((task: any) => (
-                <div key={task.id} className="flex items-center justify-between p-4 bg-accent/50 rounded-lg hover:bg-accent transition-all border border-border/50">
-                  <div className="flex-1">
-                    <p className="text-foreground text-sm font-medium mb-1">{task.title}</p>
-                    <p className="text-muted-foreground text-xs">
-                      {task.dueDate ? new Date(task.dueDate).toLocaleDateString() : 'No due date'}
-                      {task.description && ` • ${task.description.substring(0, 25)}...`}
-                    </p>
+                <div 
+                  key={task.id} 
+                  className="flex items-center justify-between p-3 bg-accent/50 rounded-lg hover:bg-accent transition-all border border-border/50 cursor-pointer"
+                  onClick={() => navigate('/planner')}
+                >
+                  <div className="flex-1 min-w-0">
+                    <p className="text-foreground text-sm font-medium truncate">{task.title}</p>
+                    <div className="flex items-center gap-2 mt-1">
+                      {task.dueDate && (
+                        <span className="text-muted-foreground text-xs">
+                          {new Date(task.dueDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+                        </span>
+                      )}
+                      {task.estimatedMinutes && (
+                        <span className="text-muted-foreground text-xs">
+                          • {Math.round(task.estimatedMinutes / 60 * 10) / 10}h
+                        </span>
+                      )}
+                    </div>
                   </div>
-                  <Badge className={`${getPriorityColor(task.priority || 'medium')} text-xs ml-2`} variant="secondary">
+                  <Badge className={`${getPriorityColor(task.priority || 'medium')} text-xs ml-2 flex-shrink-0`} variant="secondary">
                     {task.priority || 'medium'}
                   </Badge>
                 </div>
               ))}
+              {tasks.filter(t => t.status !== 'completed' && t.status !== 'done').length > 3 && (
+                <Button 
+                  variant="ghost" 
+                  size="sm" 
+                  onClick={() => navigate('/planner')} 
+                  className="w-full mt-2 text-primary hover:text-primary hover:bg-primary/5"
+                >
+                  View All Tasks ({tasks.filter(t => t.status !== 'completed' && t.status !== 'done').length})
+                </Button>
+              )}
             </div>
           )}
         </Card>

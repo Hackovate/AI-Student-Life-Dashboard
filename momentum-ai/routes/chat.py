@@ -110,7 +110,6 @@ async def chat(req: ChatRequest):
             course_id = None
             if req.structured_context:
                 # Try to extract course from structured context
-                import json
                 try:
                     # Look for course mentions in the message
                     course_pattern = r'(?:for|in|of)\s+([A-Z][a-zA-Z\s]+?)(?:\s+covering|\s+chapters|\s+on|$)'
@@ -725,7 +724,6 @@ Return ONLY a valid JSON array, no other text."""
         response_text = call_gemini_generate(prompt)
         
         # Parse JSON response
-        import json
         # Extract JSON from response (handle markdown code blocks if present)
         response_text = response_text.strip()
         if response_text.startswith('```'):

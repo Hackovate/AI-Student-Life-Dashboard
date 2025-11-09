@@ -84,6 +84,16 @@ export async function rebalanceDay(payload: any): Promise<any> {
   return data;
 }
 
+export async function summarizeNotifications(notifications: any[]): Promise<string> {
+  try {
+    const { data } = await http.post('/summarize-notifications', { notifications });
+    return data.summary || 'Summary unavailable';
+  } catch (error: any) {
+    console.error('AI service summarizeNotifications error:', error.response?.data || error.message);
+    throw error;
+  }
+}
+
 // Chat with AI
 export interface ChatRequest {
   user_id: string;
@@ -195,6 +205,19 @@ export async function deleteSyllabusFromChromaDB(userId: string, courseId: strin
     // If endpoint doesn't exist yet, that's okay - we'll create it
     if (error.response?.status !== 404) {
       console.error('Error deleting syllabus from ChromaDB:', error);
+      throw error;
+    }
+  }
+}
+
+export async function deleteContextFromChromaDB(userId: string): Promise<void> {
+  try {
+    // Call AI service to delete old context documents (user_id as query parameter)
+    await http.delete(`/ingest/context?user_id=${userId}`);
+  } catch (error: any) {
+    // If endpoint doesn't exist yet, that's okay - we'll create it
+    if (error.response?.status !== 404) {
+      console.error('Error deleting context from ChromaDB:', error);
       throw error;
     }
   }

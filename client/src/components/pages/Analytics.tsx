@@ -151,44 +151,44 @@ export function Analytics() {
             <Calendar className="w-4 h-4" />
             Last 30 Days
           </Button>
-          <Button variant="outline" className="hover:bg-primary/5 hover:border-primary/50 transition-all">Export Report</Button>
+          <Button className="hover:bg-primary/90 transition-all">Export Report</Button>
         </div>
       </div>
 
       {/* Monthly Summary */}
-      <Card className="p-6 border-border bg-gradient-to-r from-violet-50 to-purple-50 dark:from-violet-950 dark:to-purple-950 border-violet-200 dark:border-violet-800 shadow-md hover:shadow-lg transition-shadow">
+      <Card className="p-6 border-border bg-card shadow-md hover:shadow-lg transition-shadow">
         <div className="flex items-center gap-2 mb-2">
-          <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-violet-500 to-purple-500 flex items-center justify-center">
-            <Sparkles className="w-4 h-4 text-white" />
+          <div className="w-8 h-8 rounded-lg bg-primary/10 flex items-center justify-center">
+            <Sparkles className="w-4 h-4 text-primary" />
           </div>
-          <h2 className="text-foreground">Your Monthly Summary</h2>
-          <Badge className="ml-auto bg-violet-500">{monthNames[currentMonth]} {currentYear}</Badge>
+          <h2 className="text-foreground font-semibold">Your Monthly Summary</h2>
+          <Badge className="ml-auto">{monthNames[currentMonth]} {currentYear}</Badge>
         </div>
         <div className="grid grid-cols-5 gap-2">
           <div className="p-3 bg-card rounded-lg border border-border">
-            <p className="text-violet-600 dark:text-violet-400 text-sm mb-1">Tasks Completed</p>
-            <p className="text-foreground text-2xl">{monthlyStats.tasksCompleted}</p>
-            <p className="text-green-600 dark:text-green-400 text-xs mt-1">This month</p>
+            <p className="text-muted-foreground text-sm mb-1">Tasks Completed</p>
+            <p className="text-foreground text-2xl font-bold">{monthlyStats.tasksCompleted}</p>
+            <p className="text-muted-foreground text-xs mt-1">This month</p>
           </div>
           <div className="p-3 bg-card rounded-lg border border-border">
-            <p className="text-violet-600 dark:text-violet-400 text-sm mb-1">Study Hours</p>
-            <p className="text-foreground text-2xl">{monthlyStats.studyHours}h</p>
-            <p className="text-green-600 dark:text-green-400 text-xs mt-1">Total time</p>
+            <p className="text-muted-foreground text-sm mb-1">Study Hours</p>
+            <p className="text-foreground text-2xl font-bold">{monthlyStats.studyHours}h</p>
+            <p className="text-muted-foreground text-xs mt-1">Total time</p>
           </div>
           <div className="p-3 bg-card rounded-lg border border-border">
-            <p className="text-violet-600 dark:text-violet-400 text-sm mb-1">Savings Rate</p>
-            <p className="text-foreground text-2xl">{monthlyStats.savingsRate}%</p>
-            <p className="text-green-600 dark:text-green-400 text-xs mt-1">Current rate</p>
+            <p className="text-muted-foreground text-sm mb-1">Savings Rate</p>
+            <p className="text-foreground text-2xl font-bold">{monthlyStats.savingsRate}%</p>
+            <p className="text-muted-foreground text-xs mt-1">Current rate</p>
           </div>
           <div className="p-3 bg-card rounded-lg border border-border">
-            <p className="text-violet-600 dark:text-violet-400 text-sm mb-1">Wellness Score</p>
-            <p className="text-foreground text-2xl">{monthlyStats.wellnessScore}</p>
-            <p className="text-green-600 dark:text-green-400 text-xs mt-1">Habit completion</p>
+            <p className="text-muted-foreground text-sm mb-1">Wellness Score</p>
+            <p className="text-foreground text-2xl font-bold">{monthlyStats.wellnessScore}</p>
+            <p className="text-muted-foreground text-xs mt-1">Habit completion</p>
           </div>
           <div className="p-3 bg-card rounded-lg border border-border">
-            <p className="text-violet-600 dark:text-violet-400 text-sm mb-1">Skill Progress</p>
-            <p className="text-foreground text-2xl">{monthlyStats.skillProgress}%</p>
-            <p className="text-green-600 dark:text-green-400 text-xs mt-1">Average progress</p>
+            <p className="text-muted-foreground text-sm mb-1">Skill Progress</p>
+            <p className="text-foreground text-2xl font-bold">{monthlyStats.skillProgress}%</p>
+            <p className="text-muted-foreground text-xs mt-1">Average progress</p>
           </div>
         </div>
       </Card>
@@ -417,7 +417,7 @@ export function Analytics() {
         {/* Task Completion Over Time */}
         <Card className="p-6 border-border bg-card shadow-md hover:shadow-lg transition-shadow">
           <div className="flex items-center justify-between mb-1.5">
-            <h2 className="text-foreground text-lg">Task Completion Over Time</h2>
+            <h2 className="text-foreground text-lg font-semibold">Task Completion Over Time</h2>
             <TrendingUp className="w-4 h-4 text-green-500" />
           </div>
           <div className="space-y-1.5 mb-3">
@@ -511,7 +511,7 @@ export function Analytics() {
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-2">
         {/* Study vs Skill vs Lifestyle Balance */}
         <Card className="p-6 border-border bg-card shadow-md hover:shadow-lg transition-shadow">
-          <h2 className="text-foreground mb-1.5 text-lg">Time Balance Analysis</h2>
+          <h2 className="text-foreground mb-1.5 text-lg font-semibold">Time Balance Analysis</h2>
           <div className="flex items-center justify-center mb-2">
             <div className="relative w-32 h-32">
               <svg className="w-32 h-32 transform -rotate-90">
@@ -570,7 +570,7 @@ export function Analytics() {
 
         {/* Financial Health Summary */}
         <Card className="p-6 border-border bg-card shadow-md hover:shadow-lg transition-shadow">
-          <h2 className="text-foreground mb-1.5 text-lg">Financial Health Summary</h2>
+          <h2 className="text-foreground mb-1.5 text-lg font-semibold">Financial Health Summary</h2>
           <div className="space-y-2">
             <div className="p-2 bg-muted rounded-lg">
               <div className="flex items-center justify-between mb-1">
@@ -624,7 +624,7 @@ export function Analytics() {
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-2">
         {/* Academic Performance */}
         <Card className="p-6 border-border bg-card shadow-md hover:shadow-lg transition-shadow">
-          <h2 className="text-foreground mb-2 text-lg">Subject Performance Trends</h2>
+          <h2 className="text-foreground mb-2 text-lg font-semibold">Subject Performance Trends</h2>
           <div className="space-y-2">
             {subjectPerformance && subjectPerformance.length > 0 ? (
               subjectPerformance.map((subject: any) => (
@@ -659,7 +659,7 @@ export function Analytics() {
 
         {/* Skills Progress Overview */}
         <Card className="p-6 border-border bg-card shadow-md hover:shadow-lg transition-shadow">
-          <h2 className="text-foreground mb-2 text-lg">Skills Progress Overview</h2>
+          <h2 className="text-foreground mb-2 text-lg font-semibold">Skills Progress Overview</h2>
           <div className="space-y-2">
             {skills && skills.length > 0 ? (
               skills.slice(0, 5).map((skill: any) => (
@@ -693,7 +693,7 @@ export function Analytics() {
 
         {/* Expense Insights */}
         <Card className="p-6 border-border bg-card shadow-md hover:shadow-lg transition-shadow">
-          <h2 className="text-foreground mb-2 text-lg">Expense Insights</h2>
+          <h2 className="text-foreground mb-2 text-lg font-semibold">Expense Insights</h2>
           <div className="space-y-2 mb-2">
             {expenseCategories && expenseCategories.length > 0 ? (
               expenseCategories.slice(0, 5).map((expense: any, index: number) => (

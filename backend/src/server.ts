@@ -17,6 +17,8 @@ import analyticsRoutes from './routes/analytics.routes';
 import aiRoutes from './routes/ai.routes';
 import habitRoutes from './routes/habit.routes';
 import learningRoutes from './routes/learning.routes';
+import notificationRoutes from './routes/notification.routes';
+import { startDailySummaryScheduler } from './services/scheduler.service';
 
 // Load environment variables
 dotenv.config();
@@ -49,6 +51,7 @@ app.use('/api/analytics', analyticsRoutes);
 app.use('/api/ai', aiRoutes);
 app.use('/api/habits', habitRoutes);
 app.use('/api/learning', learningRoutes);
+app.use('/api/notifications', notificationRoutes);
 
 // Health check route
 app.get('/api/health', (req, res) => {
@@ -71,6 +74,9 @@ app.listen(PORT, () => {
   console.log(`🚀 Server is running on port ${PORT}`);
   console.log(`📊 Environment: ${process.env.NODE_ENV}`);
   console.log(`🌐 CORS enabled for: ${process.env.CLIENT_URL}`);
+  
+  // Start daily summary scheduler
+  startDailySummaryScheduler();
 });
 
 export default app;

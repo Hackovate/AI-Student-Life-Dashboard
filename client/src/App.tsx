@@ -3,6 +3,7 @@ import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { ThemeProvider } from './components/theme-provider';
 import { AppProvider } from './lib/AppContext';
 import { AuthProvider, useAuth } from './lib/useAuth';
+import { NotificationProvider } from './lib/NotificationContext';
 import { Toaster } from './components/ui/sonner';
 import { Sidebar } from './components/Sidebar';
 import { TopNavbar } from './components/TopNavbar';
@@ -180,10 +181,12 @@ export default function App() {
   return (
     <ThemeProvider defaultTheme="light" storageKey="ai-student-theme">
       <AuthProvider>
-        <AppProvider>
-          <AppContent />
-          <Toaster />
-        </AppProvider>
+        <NotificationProvider>
+          <AppProvider>
+            <AppContent />
+            <Toaster />
+          </AppProvider>
+        </NotificationProvider>
       </AuthProvider>
     </ThemeProvider>
   );
